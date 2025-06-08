@@ -1,0 +1,124 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "import": "Importer",
+    "generate": "Générer",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "confirm": "Confirmer",
+    "back": "Retour"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "register": "S'inscrire",
+    "email": "Email",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "rememberMe": "Se souvenir de moi"
+  },
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "schedule": "Emploi du temps",
+    "teachers": "Enseignants",
+    "subjects": "Matières",
+    "classes": "Classes",
+    "rooms": "Salles",
+    "constraints": "Contraintes",
+    "settings": "Paramètres"
+  },
+  "schedule": {
+    "title": "Emploi du temps",
+    "generate": "Générer un emploi du temps",
+    "view": "Voir l'emploi du temps",
+    "edit": "Modifier l'emploi du temps",
+    "export": "Exporter l'emploi du temps",
+    "conflicts": "Conflits",
+    "noConflicts": "Aucun conflit détecté",
+    "period": "Période",
+    "monday": "Lundi",
+    "tuesday": "Mardi",
+    "wednesday": "Mercredi",
+    "thursday": "Jeudi",
+    "friday": "Vendredi",
+    "sunday": "Dimanche",
+    "notAvailable": "Non disponible"
+  },
+  "teacher": {
+    "title": "Enseignants",
+    "firstName": "Prénom",
+    "lastName": "Nom",
+    "code": "Code",
+    "email": "Email",
+    "phone": "Téléphone",
+    "maxHours": "Heures max/semaine",
+    "subjects": "Matières enseignées",
+    "availability": "Disponibilité",
+    "addTeacher": "Ajouter un enseignant"
+  },
+  "subject": {
+    "title": "Matières",
+    "name": "Nom",
+    "code": "Code",
+    "type": "Type",
+    "hoursPerWeek": "Heures/semaine",
+    "requirements": "Exigences",
+    "addSubject": "Ajouter une matière"
+  },
+  "class": {
+    "title": "Classes",
+    "name": "Nom",
+    "code": "Code",
+    "grade": "Niveau",
+    "studentCount": "Nombre d'élèves",
+    "genderSettings": "Paramètres de genre",
+    "mixed": "Mixte",
+    "boysOnly": "Garçons uniquement",
+    "girlsOnly": "Filles uniquement",
+    "addClass": "Ajouter une classe"
+  },
+  "room": {
+    "title": "Salles",
+    "name": "Nom",
+    "code": "Code",
+    "type": "Type",
+    "capacity": "Capacité",
+    "features": "Équipements",
+    "addRoom": "Ajouter une salle"
+  },
+  "constraint": {
+    "title": "Contraintes",
+    "type": "Type",
+    "description": "Description",
+    "priority": "Priorité",
+    "hard": "Contrainte dure",
+    "soft": "Contrainte souple",
+    "addConstraint": "Ajouter une contrainte"
+  },
+  "ai": {
+    "title": "Assistant IA",
+    "placeholder": "Tapez votre message ici...",
+    "send": "Envoyer",
+    "suggestions": "Suggestions",
+    "explainConflict": "Expliquer ce conflit",
+    "applysuggestion": "Appliquer cette suggestion",
+    "processing": "Traitement en cours..."
+  },
+  "messages": {
+    "scheduleGenerated": "Emploi du temps généré avec succès",
+    "scheduleSaved": "Emploi du temps enregistré",
+    "errorGenerating": "Erreur lors de la génération de l'emploi du temps",
+    "conflictResolved": "Conflit résolu",
+    "changesSaved": "Modifications enregistrées",
+    "confirmDelete": "Êtes-vous sûr de vouloir supprimer cet élément ?"
+  }
+} 

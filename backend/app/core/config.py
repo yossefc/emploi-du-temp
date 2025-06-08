@@ -4,6 +4,7 @@ Configuration settings for the School Timetable Generator application.
 
 from typing import List, Optional
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 import os
 
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2")
     
     # AI settings
-    USE_CLAUDE: bool = os.getenv("USE_CLAUDE", "true").lower() == "true"
+    USE_CLAUDE: bool = os.getenv("USE_CLAUDE", "true")
     ANTHROPIC_API_KEY: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     AI_MODEL: str = os.getenv("AI_MODEL", "claude-3-opus-20240229")  # or "gpt-4"
@@ -63,6 +64,15 @@ class Settings(BaseSettings):
     # File upload settings
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: List[str] = [".csv", ".xlsx", ".xls"]
+    
+    @field_validator('USE_CLAUDE', mode='before')
+    @classmethod
+    def parse_use_claude(cls, v):
+        if isinstance(v, str):
+            # Remove comments and normalize
+            v = v.split("#")[0].strip().lower()
+            return v in ("true", "1", "yes", "on")
+        return bool(v)
     
     class Config:
         env_file = ".env"

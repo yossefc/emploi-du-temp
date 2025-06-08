@@ -1,0 +1,124 @@
+{
+  "common": {
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "add": "הוסף",
+    "search": "חיפוש",
+    "filter": "סינון",
+    "export": "ייצוא",
+    "import": "ייבוא",
+    "generate": "צור",
+    "loading": "טוען...",
+    "error": "שגיאה",
+    "success": "הצלחה",
+    "confirm": "אשר",
+    "back": "חזור"
+  },
+  "auth": {
+    "login": "התחברות",
+    "logout": "התנתקות",
+    "register": "הרשמה",
+    "email": "דוא״ל",
+    "password": "סיסמה",
+    "confirmPassword": "אשר סיסמה",
+    "forgotPassword": "שכחת סיסמה?",
+    "rememberMe": "זכור אותי"
+  },
+  "navigation": {
+    "dashboard": "לוח בקרה",
+    "schedule": "מערכת שעות",
+    "teachers": "מורים",
+    "subjects": "מקצועות",
+    "classes": "כיתות",
+    "rooms": "חדרים",
+    "constraints": "אילוצים",
+    "settings": "הגדרות"
+  },
+  "schedule": {
+    "title": "מערכת שעות",
+    "generate": "צור מערכת שעות",
+    "view": "צפה במערכת שעות",
+    "edit": "ערוך מערכת שעות",
+    "export": "ייצא מערכת שעות",
+    "conflicts": "התנגשויות",
+    "noConflicts": "לא נמצאו התנגשויות",
+    "period": "שיעור",
+    "monday": "שני",
+    "tuesday": "שלישי",
+    "wednesday": "רביעי",
+    "thursday": "חמישי",
+    "friday": "שישי",
+    "sunday": "ראשון",
+    "notAvailable": "לא זמין"
+  },
+  "teacher": {
+    "title": "מורים",
+    "firstName": "שם פרטי",
+    "lastName": "שם משפחה",
+    "code": "קוד",
+    "email": "דוא״ל",
+    "phone": "טלפון",
+    "maxHours": "שעות מקסימום לשבוע",
+    "subjects": "מקצועות הוראה",
+    "availability": "זמינות",
+    "addTeacher": "הוסף מורה"
+  },
+  "subject": {
+    "title": "מקצועות",
+    "name": "שם",
+    "code": "קוד",
+    "type": "סוג",
+    "hoursPerWeek": "שעות לשבוע",
+    "requirements": "דרישות",
+    "addSubject": "הוסף מקצוע"
+  },
+  "class": {
+    "title": "כיתות",
+    "name": "שם",
+    "code": "קוד",
+    "grade": "שכבה",
+    "studentCount": "מספר תלמידים",
+    "genderSettings": "הגדרות מגדר",
+    "mixed": "מעורב",
+    "boysOnly": "בנים בלבד",
+    "girlsOnly": "בנות בלבד",
+    "addClass": "הוסף כיתה"
+  },
+  "room": {
+    "title": "חדרים",
+    "name": "שם",
+    "code": "קוד",
+    "type": "סוג",
+    "capacity": "קיבולת",
+    "features": "מאפיינים",
+    "addRoom": "הוסף חדר"
+  },
+  "constraint": {
+    "title": "אילוצים",
+    "type": "סוג",
+    "description": "תיאור",
+    "priority": "עדיפות",
+    "hard": "אילוץ קשיח",
+    "soft": "אילוץ רך",
+    "addConstraint": "הוסף אילוץ"
+  },
+  "ai": {
+    "title": "עוזר AI",
+    "placeholder": "הקלד את ההודעה שלך כאן...",
+    "send": "שלח",
+    "suggestions": "הצעות",
+    "explainConflict": "הסבר התנגשות זו",
+    "applysuggestion": "החל הצעה זו",
+    "processing": "מעבד..."
+  },
+  "messages": {
+    "scheduleGenerated": "מערכת השעות נוצרה בהצלחה",
+    "scheduleSaved": "מערכת השעות נשמרה",
+    "errorGenerating": "שגיאה ביצירת מערכת השעות",
+    "conflictResolved": "ההתנגשות נפתרה",
+    "changesSaved": "השינויים נשמרו",
+    "confirmDelete": "האם אתה בטוח שברצונך למחוק פריט זה?"
+  }
+} 

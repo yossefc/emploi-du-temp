@@ -1,688 +1,292 @@
 """
-AI Agent for natural language processing and schedule optimization.
+Agent IA pour l'assistance à la génération d'emplois du temps.
 """
 
+import os
 import json
-import logging
-from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass
-from enum import Enum
-
+from typing import Dict, List, Any, Optional
+from datetime import datetime
 import anthropic
 import openai
 from sqlalchemy.orm import Session
+import logging
 
 from app.core.config import settings
-from app.models import (
-    Teacher, Subject, ClassGroup, Room,
-    TeacherAvailability, GlobalConstraint,
-    Schedule, ScheduleConflict
-)
+from app.models.schedule import Schedule, ScheduleEntry
 
 logger = logging.getLogger(__name__)
 
 
-class ConversationRole(str, Enum):
-    """Conversation roles."""
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-
-
-@dataclass
-class Message:
-    """Chat message structure."""
-    role: ConversationRole
-    content: str
-    language: str = "he"  # Default Hebrew
-
-
-@dataclass
-class ConstraintParsed:
-    """Parsed constraint from natural language."""
-    entity_type: str  # teacher, class, room, global
-    entity_id: Optional[int]
-    constraint_type: str  # availability, preference, requirement
-    parameters: Dict[str, Any]
-    confidence: float  # 0-1 confidence score
-
-
-class AIAgent:
-    """Main AI agent for schedule management."""
+class TimetableAIAgent:
+    """Agent IA pour assister dans la création et l'optimisation d'emplois du temps."""
     
     def __init__(self, db: Session):
         self.db = db
-        self.conversation_history: List[Message] = []
+        self.use_claude = settings.USE_CLAUDE
         
-        # Initialize AI client based on settings
-        if settings.USE_CLAUDE:
-            self.client = anthropic.Client(api_key=settings.ANTHROPIC_API_KEY)
-            self.model = settings.AI_MODEL
+        if self.use_claude:
+            self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         else:
             openai.api_key = settings.OPENAI_API_KEY
-            self.client = openai
-            self.model = settings.AI_MODEL
     
-    async def process_message(
-        self, 
-        user_message: str, 
-        language: str = "he",
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    async def send_message(self, message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Process a user message and return AI response with actions.
+        Envoyer un message à l'agent IA et recevoir une réponse.
         """
-        # Add user message to history
-        self.conversation_history.append(
-            Message(role=ConversationRole.USER, content=user_message, language=language)
+        try:
+            # Préparer le contexte
+            system_prompt = self._prepare_system_prompt(context)
+            
+            if self.use_claude:
+                response = await self._send_to_claude(message, system_prompt)
+            else:
+                response = await self._send_to_gpt(message, system_prompt)
+            
+            # Parser la réponse et extraire les actions
+            parsed_response = self._parse_ai_response(response)
+            
+            return {
+                "message": parsed_response["message"],
+                "suggestions": parsed_response.get("suggestions", []),
+                "actions": parsed_response.get("actions", []),
+                "context": context
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in AI agent: {str(e)}")
+            return {
+                "message": "Désolé, une erreur s'est produite. Pouvez-vous reformuler votre demande ?",
+                "suggestions": [],
+                "actions": [],
+                "error": str(e)
+            }
+    
+    def _prepare_system_prompt(self, context: Optional[Dict[str, Any]]) -> str:
+        """Préparer le prompt système avec le contexte."""
+        base_prompt = """
+Tu es un assistant IA spécialisé dans la création d'emplois du temps scolaires.
+Tu aides les utilisateurs à :
+1. Comprendre et résoudre les conflits d'emploi du temps
+2. Ajouter des contraintes en langage naturel
+3. Optimiser la répartition des cours
+4. Expliquer les décisions du système d'optimisation
+
+Spécificités du système éducatif israélien :
+- La semaine va du dimanche au vendredi
+- Le vendredi se termine à 13h (6 périodes max)
+- Possibilité de séparer garçons/filles pour certains cours
+- Support bilingue français/hébreu
+
+Tu dois toujours répondre de manière claire et concise, en proposant des actions concrètes.
+Si tu identifies des contraintes dans le message, formate-les en JSON.
+"""
+        
+        if context:
+            if context.get("schedule_id"):
+                schedule = self.db.query(Schedule).filter(Schedule.id == context["schedule_id"]).first()
+                if schedule:
+                    base_prompt += f"\n\nContexte actuel : Emploi du temps '{schedule.name}'"
+                    if schedule.conflicts:
+                        base_prompt += f"\nConflits détectés : {len(schedule.conflicts)}"
+        
+        return base_prompt
+    
+    async def _send_to_claude(self, message: str, system_prompt: str) -> str:
+        """Envoyer le message à Claude."""
+        response = self.client.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=1000,
+            temperature=0.7,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": message}
+            ]
         )
-        
-        # Determine intent
-        intent = await self._determine_intent(user_message, language)
-        
-        # Process based on intent
-        response = None
-        actions = []
-        
-        if intent == "add_constraint":
-            constraint = await self._parse_constraint(user_message, language)
-            if constraint:
-                actions.append({
-                    "type": "add_constraint",
-                    "data": constraint
-                })
-                response = self._generate_constraint_confirmation(constraint, language)
-        
-        elif intent == "explain_conflict":
-            conflicts = context.get("conflicts", []) if context else []
-            response = await self._explain_conflicts(conflicts, language)
-        
-        elif intent == "suggest_modification":
-            schedule_data = context.get("schedule", {}) if context else {}
-            suggestions = await self._generate_suggestions(schedule_data, language)
-            actions.append({
-                "type": "suggestions",
-                "data": suggestions
-            })
-            response = self._format_suggestions(suggestions, language)
-        
-        elif intent == "query_schedule":
-            query_result = await self._query_schedule(user_message, context, language)
-            response = query_result["response"]
-            if "visualization" in query_result:
-                actions.append({
-                    "type": "visualize",
-                    "data": query_result["visualization"]
-                })
-        
-        else:
-            # General conversation
-            response = await self._generate_response(user_message, language)
-        
-        # Add assistant response to history
-        self.conversation_history.append(
-            Message(role=ConversationRole.ASSISTANT, content=response, language=language)
+        return response.content[0].text
+    
+    async def _send_to_gpt(self, message: str, system_prompt: str) -> str:
+        """Envoyer le message à GPT."""
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            temperature=0.7,
+            max_tokens=1000
         )
+        return response.choices[0].message.content
+    
+    def _parse_ai_response(self, response: str) -> Dict[str, Any]:
+        """Parser la réponse de l'IA pour extraire les actions structurées."""
+        result = {
+            "message": response,
+            "suggestions": [],
+            "actions": []
+        }
+        
+        # Essayer d'extraire du JSON de la réponse
+        try:
+            # Chercher des blocs JSON dans la réponse
+            import re
+            json_pattern = r'\{[^{}]*\}'
+            json_matches = re.findall(json_pattern, response)
+            
+            for match in json_matches:
+                try:
+                    data = json.loads(match)
+                    if "action" in data:
+                        result["actions"].append(data)
+                    elif "suggestion" in data:
+                        result["suggestions"].append(data["suggestion"])
+                except:
+                    pass
+        except:
+            pass
+        
+        # Si pas de suggestions trouvées, en générer quelques-unes par défaut
+        if not result["suggestions"] and "conflit" in response.lower():
+            result["suggestions"] = [
+                "Voir les détails du conflit",
+                "Proposer une alternative",
+                "Ignorer ce conflit"
+            ]
+        
+        return result
+    
+    async def parse_constraints(self, text: str) -> Dict[str, Any]:
+        """
+        Parser du texte en langage naturel pour extraire des contraintes.
+        """
+        system_prompt = """
+Tu es un expert en parsing de contraintes d'emploi du temps.
+Extrais toutes les contraintes mentionnées dans le texte et formate-les en JSON.
+
+Format de sortie attendu :
+{
+    "constraints": [
+        {
+            "type": "teacher_availability" | "room_unavailability" | "consecutive_hours" | "max_hours_per_day" | "other",
+            "entity": "nom de l'entité concernée",
+            "description": "description en français",
+            "parameters": {
+                // paramètres spécifiques selon le type
+            }
+        }
+    ]
+}
+
+Exemples :
+- "Le professeur Dupont ne peut pas enseigner le lundi matin" -> teacher_availability
+- "La salle 101 est réservée tous les mercredis" -> room_unavailability
+- "Les cours de math doivent être consécutifs" -> consecutive_hours
+"""
+        
+        try:
+            if self.use_claude:
+                response = await self._send_to_claude(text, system_prompt)
+            else:
+                response = await self._send_to_gpt(text, system_prompt)
+            
+            # Extraire le JSON de la réponse
+            import re
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                constraints_data = json.loads(json_match.group())
+                return constraints_data
+            else:
+                return {"constraints": [], "error": "Impossible d'extraire les contraintes"}
+                
+        except Exception as e:
+            logger.error(f"Error parsing constraints: {str(e)}")
+            return {"constraints": [], "error": str(e)}
+    
+    async def explain_conflict(self, conflict_id: int) -> Dict[str, Any]:
+        """
+        Expliquer un conflit de manière compréhensible.
+        """
+        # Récupérer le conflit depuis la DB
+        # Pour l'instant, on simule
+        conflict_description = f"Conflit #{conflict_id}: L'enseignant est assigné à deux classes en même temps"
+        
+        explanation = f"""
+Je vais vous expliquer ce conflit de manière simple :
+
+{conflict_description}
+
+**Pourquoi est-ce un problème ?**
+Un enseignant ne peut pas être dans deux endroits différents au même moment.
+
+**Solutions possibles :**
+1. Déplacer l'un des cours à un autre créneau horaire
+2. Assigner un autre enseignant à l'un des cours
+3. Fusionner les deux classes si c'est la même matière
+
+Voulez-vous que je propose une modification spécifique ?
+"""
         
         return {
-            "response": response,
-            "actions": actions,
-            "intent": intent
+            "explanation": explanation,
+            "suggestions": [
+                "Déplacer le premier cours",
+                "Déplacer le second cours",
+                "Changer d'enseignant",
+                "Voir les créneaux disponibles"
+            ]
         }
     
-    async def _determine_intent(self, message: str, language: str) -> str:
-        """Determine the intent of the user message."""
-        system_prompt = self._get_intent_system_prompt(language)
-        
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=100,
-                temperature=0.1,
-                system=system_prompt,
-                messages=[{"role": "user", "content": message}]
-            )
-            intent = response.content[0].text.strip().lower()
-        else:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=0.1,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message}
-                ]
-            )
-            intent = response.choices[0].message.content.strip().lower()
-        
-        # Map to known intents
-        intent_map = {
-            "constraint": "add_constraint",
-            "conflict": "explain_conflict",
-            "suggestion": "suggest_modification",
-            "query": "query_schedule",
-            "general": "general"
-        }
-        
-        for key, value in intent_map.items():
-            if key in intent:
-                return value
-        
-        return "general"
-    
-    async def _parse_constraint(self, message: str, language: str) -> Optional[Dict[str, Any]]:
-        """Parse natural language constraint into structured format."""
-        # Get entities from database for context
-        teachers = self.db.query(Teacher).all()
-        subjects = self.db.query(Subject).all()
-        rooms = self.db.query(Room).all()
-        classes = self.db.query(ClassGroup).all()
-        
-        context = {
-            "teachers": [{"id": t.id, "name": t.full_name} for t in teachers],
-            "subjects": [{"id": s.id, "name_he": s.name_he, "name_fr": s.name_fr} for s in subjects],
-            "rooms": [{"id": r.id, "code": r.code, "name": r.name} for r in rooms],
-            "classes": [{"id": c.id, "code": c.code, "name": c.name} for c in classes]
-        }
-        
-        system_prompt = self._get_constraint_parsing_prompt(language, context)
-        
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=500,
-                temperature=0.2,
-                system=system_prompt,
-                messages=[{"role": "user", "content": message}]
-            )
-            content = response.content[0].text
-        else:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=0.2,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message}
-                ]
-            )
-            content = response.choices[0].message.content
-        
-        try:
-            parsed = json.loads(content)
-            return parsed
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse constraint JSON: {content}")
-            return None
-    
-    async def _explain_conflicts(self, conflicts: List[Dict[str, Any]], language: str) -> str:
-        """Explain scheduling conflicts in natural language."""
-        if not conflicts:
-            if language == "fr":
-                return "Aucun conflit détecté dans l'emploi du temps."
-            else:
-                return "לא נמצאו התנגשויות בלוח הזמנים."
-        
-        # Load related entities for better explanation
-        conflict_details = []
-        for conflict in conflicts:
-            if conflict.get("conflict_type") == "teacher_overlap":
-                # Get teacher and class details
-                details = self._get_teacher_conflict_details(conflict)
-                conflict_details.append(details)
-            elif conflict.get("conflict_type") == "room_overlap":
-                details = self._get_room_conflict_details(conflict)
-                conflict_details.append(details)
-            else:
-                conflict_details.append(conflict)
-        
-        system_prompt = self._get_conflict_explanation_prompt(language)
-        conflicts_json = json.dumps(conflict_details, ensure_ascii=False)
-        
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1000,
-                temperature=0.3,
-                system=system_prompt,
-                messages=[{"role": "user", "content": conflicts_json}]
-            )
-            return response.content[0].text
-        else:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=0.3,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": conflicts_json}
-                ]
-            )
-            return response.choices[0].message.content
-    
-    async def _generate_suggestions(
-        self, 
-        schedule_data: Dict[str, Any], 
-        language: str
-    ) -> List[Dict[str, Any]]:
-        """Generate suggestions to improve or fix the schedule."""
-        # Analyze current schedule
-        analysis = self._analyze_schedule(schedule_data)
-        
-        system_prompt = self._get_suggestion_prompt(language)
-        analysis_json = json.dumps(analysis, ensure_ascii=False)
-        
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1500,
-                temperature=0.4,
-                system=system_prompt,
-                messages=[{"role": "user", "content": analysis_json}]
-            )
-            content = response.content[0].text
-        else:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=0.4,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": analysis_json}
-                ]
-            )
-            content = response.choices[0].message.content
-        
-        try:
-            suggestions = json.loads(content)
-            return suggestions.get("suggestions", [])
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse suggestions JSON: {content}")
-            return []
-    
-    async def _query_schedule(
-        self, 
-        query: str, 
-        context: Optional[Dict[str, Any]], 
-        language: str
-    ) -> Dict[str, Any]:
-        """Answer queries about the schedule."""
-        schedule_id = context.get("schedule_id") if context else None
-        if not schedule_id:
-            if language == "fr":
-                return {
-                    "response": "Aucun emploi du temps actif. Veuillez d'abord générer un emploi du temps."
-                }
-            else:
-                return {
-                    "response": "אין לוח זמנים פעיל. אנא צור לוח זמנים תחילה."
-                }
-        
-        # Get schedule data
+    async def get_suggestions(self, schedule_id: int) -> List[Dict[str, Any]]:
+        """
+        Obtenir des suggestions d'amélioration pour un emploi du temps.
+        """
         schedule = self.db.query(Schedule).filter(Schedule.id == schedule_id).first()
         if not schedule:
-            if language == "fr":
-                return {"response": "Emploi du temps introuvable."}
-            else:
-                return {"response": "לוח הזמנים לא נמצא."}
+            return []
         
-        # Prepare context for query
-        query_context = self._prepare_schedule_context(schedule)
+        suggestions = []
         
-        system_prompt = self._get_query_prompt(language)
-        query_with_context = f"Context: {json.dumps(query_context, ensure_ascii=False)}\n\nQuery: {query}"
+        # Analyser l'emploi du temps et générer des suggestions
+        entries = self.db.query(ScheduleEntry).filter(
+            ScheduleEntry.schedule_id == schedule_id
+        ).all()
         
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1000,
-                temperature=0.3,
-                system=system_prompt,
-                messages=[{"role": "user", "content": query_with_context}]
-            )
-            answer = response.content[0].text
-        else:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=0.3,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query_with_context}
-                ]
-            )
-            answer = response.choices[0].message.content
+        # Suggestion 1: Équilibrer la charge
+        teacher_load = {}
+        for entry in entries:
+            if entry.teacher_id not in teacher_load:
+                teacher_load[entry.teacher_id] = 0
+            teacher_load[entry.teacher_id] += 1
         
-        return {"response": answer}
-    
-    async def _generate_response(self, message: str, language: str) -> str:
-        """Generate a general response."""
-        system_prompt = self._get_general_system_prompt(language)
+        max_load = max(teacher_load.values()) if teacher_load else 0
+        min_load = min(teacher_load.values()) if teacher_load else 0
         
-        # Include recent conversation history
-        messages = []
-        for msg in self.conversation_history[-5:]:  # Last 5 messages
-            if settings.USE_CLAUDE:
-                messages.append({
-                    "role": msg.role.value if msg.role != ConversationRole.SYSTEM else "user",
-                    "content": msg.content
-                })
-            else:
-                messages.append({
-                    "role": msg.role.value,
-                    "content": msg.content
-                })
-        
-        if settings.USE_CLAUDE:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1000,
-                temperature=settings.AI_TEMPERATURE,
-                system=system_prompt,
-                messages=messages
-            )
-            return response.content[0].text
-        else:
-            messages.insert(0, {"role": "system", "content": system_prompt})
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                temperature=settings.AI_TEMPERATURE,
-                messages=messages
-            )
-            return response.choices[0].message.content
-    
-    def _generate_constraint_confirmation(
-        self, 
-        constraint: Dict[str, Any], 
-        language: str
-    ) -> str:
-        """Generate confirmation message for added constraint."""
-        if language == "fr":
-            return f"J'ai bien compris. La contrainte suivante a été ajoutée : {json.dumps(constraint, ensure_ascii=False, indent=2)}"
-        else:
-            return f"הבנתי. האילוץ הבא נוסף: {json.dumps(constraint, ensure_ascii=False, indent=2)}"
-    
-    def _format_suggestions(self, suggestions: List[Dict[str, Any]], language: str) -> str:
-        """Format suggestions for display."""
-        if not suggestions:
-            if language == "fr":
-                return "Aucune suggestion disponible pour le moment."
-            else:
-                return "אין הצעות זמינות כרגע."
-        
-        if language == "fr":
-            response = "Voici mes suggestions pour améliorer l'emploi du temps :\n\n"
-            for i, suggestion in enumerate(suggestions, 1):
-                response += f"{i}. {suggestion.get('description', '')}\n"
-                if suggestion.get('impact'):
-                    response += f"   Impact : {suggestion['impact']}\n"
-                response += "\n"
-        else:
-            response = "הנה ההצעות שלי לשיפור לוח הזמנים:\n\n"
-            for i, suggestion in enumerate(suggestions, 1):
-                response += f"{i}. {suggestion.get('description', '')}\n"
-                if suggestion.get('impact'):
-                    response += f"   השפעה: {suggestion['impact']}\n"
-                response += "\n"
-        
-        return response
-    
-    def _analyze_schedule(self, schedule_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze schedule for potential improvements."""
-        analysis = {
-            "total_lessons": len(schedule_data.get("entries", [])),
-            "conflicts": schedule_data.get("conflicts", []),
-            "teacher_loads": {},
-            "class_distributions": {},
-            "room_utilization": {},
-            "issues": []
-        }
-        
-        # Analyze teacher loads
-        for entry in schedule_data.get("entries", []):
-            teacher_id = entry.get("teacher_id")
-            if teacher_id:
-                if teacher_id not in analysis["teacher_loads"]:
-                    analysis["teacher_loads"][teacher_id] = 0
-                analysis["teacher_loads"][teacher_id] += 1
-        
-        # Identify overloaded teachers
-        for teacher_id, load in analysis["teacher_loads"].items():
-            teacher = self.db.query(Teacher).filter(Teacher.id == teacher_id).first()
-            if teacher and load > teacher.max_hours_per_week:
-                analysis["issues"].append({
-                    "type": "teacher_overload",
-                    "teacher_id": teacher_id,
-                    "load": load,
-                    "max": teacher.max_hours_per_week
-                })
-        
-        return analysis
-    
-    def _prepare_schedule_context(self, schedule: Schedule) -> Dict[str, Any]:
-        """Prepare schedule context for queries."""
-        entries = []
-        for entry in schedule.entries:
-            entries.append({
-                "day": entry.day_of_week,
-                "period": entry.period,
-                "class": entry.class_group.name,
-                "subject": entry.subject.name_he,
-                "teacher": entry.teacher.full_name,
-                "room": entry.room.name
+        if max_load - min_load > 5:
+            suggestions.append({
+                "id": 1,
+                "type": "optimization",
+                "description": "Certains enseignants ont une charge significativement plus élevée que d'autres",
+                "priority": "medium",
+                "action": {
+                    "type": "rebalance_load",
+                    "parameters": {"threshold": 5}
+                }
             })
         
-        return {
-            "schedule_name": schedule.name,
-            "status": schedule.status,
-            "entries_count": len(entries),
-            "entries": entries[:20]  # Limit to prevent token overflow
-        }
-    
-    def _get_teacher_conflict_details(self, conflict: Dict[str, Any]) -> Dict[str, Any]:
-        """Get detailed information about teacher conflicts."""
-        # Implementation would fetch actual teacher and class details
-        return conflict
-    
-    def _get_room_conflict_details(self, conflict: Dict[str, Any]) -> Dict[str, Any]:
-        """Get detailed information about room conflicts."""
-        # Implementation would fetch actual room details
-        return conflict
-    
-    # System prompts for different tasks
-    def _get_intent_system_prompt(self, language: str) -> str:
-        """Get system prompt for intent detection."""
-        if language == "fr":
-            return """
-            Vous êtes un assistant pour déterminer l'intention de l'utilisateur.
-            Répondez avec un seul mot parmi : constraint, conflict, suggestion, query, general
-            
-            - constraint : L'utilisateur veut ajouter une contrainte
-            - conflict : L'utilisateur demande des explications sur des conflits
-            - suggestion : L'utilisateur veut des suggestions d'amélioration
-            - query : L'utilisateur pose une question sur l'emploi du temps
-            - general : Conversation générale
-            """
-        else:
-            return """
-            אתה עוזר לזיהוי כוונת המשתמש.
-            ענה במילה אחת מתוך: constraint, conflict, suggestion, query, general
-            
-            - constraint : המשתמש רוצה להוסיף אילוץ
-            - conflict : המשתמש מבקש הסברים על התנגשויות
-            - suggestion : המשתמש רוצה הצעות לשיפור
-            - query : המשתמש שואל שאלה על לוח הזמנים
-            - general : שיחה כללית
-            """
-    
-    def _get_constraint_parsing_prompt(self, language: str, context: Dict[str, Any]) -> str:
-        """Get system prompt for constraint parsing."""
-        context_json = json.dumps(context, ensure_ascii=False)
+        # Suggestion 2: Réduire les trous
+        # (Analyse simplifiée - à améliorer)
+        suggestions.append({
+            "id": 2,
+            "type": "optimization",
+            "description": "Optimiser pour réduire les périodes libres entre les cours",
+            "priority": "low",
+            "action": {
+                "type": "minimize_gaps",
+                "parameters": {}
+            }
+        })
         
-        if language == "fr":
-            return f"""
-            Vous êtes un assistant expert pour analyser les contraintes d'emploi du temps scolaire.
-            
-            Contexte disponible :
-            {context_json}
-            
-            Analysez le message de l'utilisateur et extrayez une contrainte structurée.
-            Répondez UNIQUEMENT avec un JSON valide dans ce format :
-            {{
-                "entity_type": "teacher|class|room|global",
-                "entity_id": null ou ID de l'entité,
-                "constraint_type": "availability|preference|requirement",
-                "parameters": {{
-                    // Paramètres spécifiques à la contrainte
-                }},
-                "confidence": 0.0-1.0
-            }}
-            
-            Exemples de paramètres :
-            - Pour disponibilité : {{"day": 0-5, "start_time": "HH:MM", "end_time": "HH:MM", "available": true/false}}
-            - Pour préférence : {{"preference_type": "no_early_monday", "weight": 1-10}}
-            - Pour exigence : {{"hours_per_week": N, "max_per_day": N}}
-            """
-        else:
-            return f"""
-            אתה עוזר מומחה לניתוח אילוצי מערכת שעות.
-            
-            הקשר זמין:
-            {context_json}
-            
-            נתח את הודעת המשתמש וחלץ אילוץ מובנה.
-            ענה רק עם JSON תקין בפורמט הבא:
-            {{
-                "entity_type": "teacher|class|room|global",
-                "entity_id": null או מזהה הישות,
-                "constraint_type": "availability|preference|requirement",
-                "parameters": {{
-                    // פרמטרים ספציפיים לאילוץ
-                }},
-                "confidence": 0.0-1.0
-            }}
-            
-            דוגמאות לפרמטרים:
-            - לזמינות: {{"day": 0-5, "start_time": "HH:MM", "end_time": "HH:MM", "available": true/false}}
-            - להעדפה: {{"preference_type": "no_early_monday", "weight": 1-10}}
-            - לדרישה: {{"hours_per_week": N, "max_per_day": N}}
-            """
-    
-    def _get_conflict_explanation_prompt(self, language: str) -> str:
-        """Get system prompt for conflict explanation."""
-        if language == "fr":
-            return """
-            Vous êtes un assistant expert en emploi du temps scolaire.
-            Expliquez les conflits de manière claire et non technique.
-            
-            Pour chaque conflit :
-            1. Décrivez le problème en termes simples
-            2. Expliquez pourquoi c'est un problème
-            3. Suggérez des solutions possibles
-            
-            Utilisez un langage accessible aux administrateurs scolaires.
-            """
-        else:
-            return """
-            אתה עוזר מומחה במערכות שעות בית ספר.
-            הסבר את ההתנגשויות בצורה ברורה ולא טכנית.
-            
-            לכל התנגשות:
-            1. תאר את הבעיה במילים פשוטות
-            2. הסבר למה זו בעיה
-            3. הצע פתרונות אפשריים
-            
-            השתמש בשפה נגישה למנהלי בתי ספר.
-            """
-    
-    def _get_suggestion_prompt(self, language: str) -> str:
-        """Get system prompt for generating suggestions."""
-        if language == "fr":
-            return """
-            Vous êtes un expert en optimisation d'emplois du temps scolaires.
-            
-            Analysez les données fournies et générez des suggestions concrètes.
-            Répondez avec un JSON :
-            {{
-                "suggestions": [
-                    {{
-                        "type": "constraint_relaxation|resource_addition|schedule_modification",
-                        "description": "Description claire de la suggestion",
-                        "impact": "Impact attendu",
-                        "implementation": "Comment implémenter",
-                        "priority": "high|medium|low"
-                    }}
-                ]
-            }}
-            
-            Considérez les spécificités israéliennes :
-            - Vendredi écourté
-            - Séparation garçons/filles pour certains cours
-            - Cours religieux
-            """
-        else:
-            return """
-            אתה מומחה באופטימיזציה של מערכות שעות.
-            
-            נתח את הנתונים וצור הצעות קונקרטיות.
-            ענה עם JSON:
-            {{
-                "suggestions": [
-                    {{
-                        "type": "constraint_relaxation|resource_addition|schedule_modification",
-                        "description": "תיאור ברור של ההצעה",
-                        "impact": "ההשפעה הצפויה",
-                        "implementation": "איך ליישם",
-                        "priority": "high|medium|low"
-                    }}
-                ]
-            }}
-            
-            קח בחשבון מאפיינים ישראליים:
-            - יום שישי מקוצר
-            - הפרדה בנים/בנות לשיעורים מסוימים
-            - שיעורי דת
-            """
-    
-    def _get_query_prompt(self, language: str) -> str:
-        """Get system prompt for answering queries."""
-        if language == "fr":
-            return """
-            Vous êtes un assistant pour répondre aux questions sur l'emploi du temps.
-            
-            Répondez de manière claire et concise.
-            Si les données ne permettent pas de répondre, dites-le clairement.
-            Utilisez les informations du contexte fourni.
-            """
-        else:
-            return """
-            אתה עוזר לענות על שאלות על לוח הזמנים.
-            
-            ענה בצורה ברורה ותמציתית.
-            אם הנתונים לא מאפשרים לענות, אמור זאת בבירור.
-            השתמש במידע מההקשר שסופק.
-            """
-    
-    def _get_general_system_prompt(self, language: str) -> str:
-        """Get general system prompt."""
-        if language == "fr":
-            return """
-            Vous êtes un assistant IA expert en gestion d'emplois du temps scolaires.
-            Vous aidez les administrateurs d'écoles israéliennes à créer et optimiser leurs emplois du temps.
-            
-            Vos capacités :
-            - Comprendre et formaliser des contraintes en langage naturel
-            - Expliquer les conflits de manière non technique
-            - Suggérer des améliorations
-            - Répondre aux questions sur les emplois du temps
-            
-            Soyez professionnel, clair et aidant.
-            """
-        else:
-            return """
-            אתה עוזר AI מומחה בניהול מערכות שעות בית ספר.
-            אתה עוזר למנהלי בתי ספר בישראל ליצור ולייעל את מערכות השעות שלהם.
-            
-            היכולות שלך:
-            - להבין ולפרמל אילוצים בשפה טבעית
-            - להסביר התנגשויות בצורה לא טכנית
-            - להציע שיפורים
-            - לענות על שאלות על מערכות השעות
-            
-            היה מקצועי, ברור ועוזר.
-            """ 
+        return suggestions
+
+
+# Alias pour compatibilité avec les imports existants
+AIAgent = TimetableAIAgent 
