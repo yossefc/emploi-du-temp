@@ -1,26 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Box,
-  Button,
-  Typography,
-  Paper,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  CircularProgress,
-  Alert,
-  Fab,
-  Tooltip
-} from '@mui/material';
-import {
-  Add,
-  Download,
-  PlayArrow,
-  Chat
-} from '@mui/icons-material';
+  PlusIcon,
+  ArrowDownTrayIcon,
+  PlayIcon,
+  ChatBubbleLeftRightIcon
+} from '@heroicons/react/24/outline';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { generateSchedule, setCurrentSchedule } from '../store/slices/scheduleSlice';
 import Layout from '../components/Common/Layout';
@@ -74,155 +58,170 @@ const SchedulePage: React.FC = () => {
 
   return (
     <Layout>
-      <Box sx={{ flexGrow: 1, position: 'relative' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">
+      <div className="flex-1 relative">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">
             Emploi du temps
-          </Typography>
+          </h1>
           
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <div className="flex gap-2">
             {currentSchedule && (
               <>
-                <Button
-                  variant="outlined"
-                  startIcon={<Download />}
+                <button
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('excel')}
                 >
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
                   Excel
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<Download />}
+                </button>
+                <button
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('pdf')}
                 >
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
                   PDF
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<Download />}
+                </button>
+                <button
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('ics')}
                 >
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
                   Calendrier
-                </Button>
+                </button>
               </>
             )}
-            <Button
-              variant="contained"
-              startIcon={<Add />}
+            <button
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               onClick={() => setOpenGenerate(true)}
             >
+              <PlusIcon className="w-4 h-4 mr-2" />
               Générer
-            </Button>
-          </Box>
-        </Box>
+            </button>
+          </div>
+        </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <div className="text-sm text-red-700">
+              {error}
+            </div>
+          </div>
         )}
 
         {isLoading ? (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <CircularProgress size={60} />
-            <Typography variant="h6" sx={{ mt: 2 }}>
+          <div className="bg-white shadow rounded-lg p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
               Génération en cours...
-            </Typography>
-            <Typography color="text.secondary" sx={{ mt: 1 }}>
+            </h3>
+            <p className="mt-2 text-sm text-gray-500">
               Cela peut prendre quelques minutes selon la complexité
-            </Typography>
-          </Paper>
+            </p>
+          </div>
         ) : currentSchedule ? (
-          <Grid container spacing={3}>
-            <Grid item xs={12} lg={showChat ? 8 : 12}>
-              <Paper sx={{ p: 2 }}>
-                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="h6">
+          <div className={`grid gap-6 ${showChat ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+            <div className={showChat ? 'lg:col-span-2' : 'col-span-1'}>
+              <div className="bg-white shadow rounded-lg p-4">
+                <div className="mb-4 flex justify-between items-center">
+                  <h2 className="text-lg font-medium text-gray-900">
                     {currentSchedule.name}
-                  </Typography>
+                  </h2>
                   {currentSchedule.conflicts && currentSchedule.conflicts.length > 0 && (
-                    <Alert severity="warning" sx={{ py: 0 }}>
+                    <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
                       {currentSchedule.conflicts.length} conflit(s) détecté(s)
-                    </Alert>
+                    </div>
                   )}
-                </Box>
+                </div>
                 <ScheduleGrid
                   schedule={currentSchedule}
                   onUpdate={handleScheduleUpdate}
                   readOnly={false}
                 />
-              </Paper>
-            </Grid>
+              </div>
+            </div>
             
             {showChat && (
-              <Grid item xs={12} lg={4}>
-                <Paper sx={{ height: '80vh', display: 'flex', flexDirection: 'column' }}>
+              <div className="lg:col-span-1">
+                <div className="bg-white shadow rounded-lg h-96 lg:h-[80vh] flex flex-col">
                   <ChatInterface
                     onSendMessage={handleAIMessage}
                     language="fr"
                   />
-                </Paper>
-              </Grid>
+                </div>
+              </div>
             )}
-          </Grid>
+          </div>
         ) : (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary">
+          <div className="bg-white shadow rounded-lg p-8 text-center">
+            <h3 className="text-lg font-medium text-gray-500">
               Aucun emploi du temps sélectionné
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            </h3>
+            <p className="mt-2 text-sm text-gray-400">
               Cliquez sur "Générer" pour créer un nouvel emploi du temps
-            </Typography>
-          </Paper>
+            </p>
+          </div>
         )}
 
         {/* FAB pour ouvrir/fermer le chat */}
         {currentSchedule && (
-          <Tooltip title={showChat ? "Fermer l'assistant" : "Ouvrir l'assistant IA"}>
-            <Fab
-              color="primary"
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                right: 24
-              }}
-              onClick={() => setShowChat(!showChat)}
-            >
-              <Chat />
-            </Fab>
-          </Tooltip>
+          <button
+            className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+            onClick={() => setShowChat(!showChat)}
+            title={showChat ? "Fermer l'assistant" : "Ouvrir l'assistant IA"}
+          >
+            <ChatBubbleLeftRightIcon className="w-6 h-6 mx-auto" />
+          </button>
         )}
 
         {/* Dialog de génération */}
-        <Dialog open={openGenerate} onClose={() => setOpenGenerate(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Générer un nouvel emploi du temps</DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Nom de l'emploi du temps"
-              fullWidth
-              variant="outlined"
-              value={scheduleName}
-              onChange={(e) => setScheduleName(e.target.value)}
-              placeholder="Ex: Emploi du temps 2024 - Semestre 1"
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenGenerate(false)}>
-              Annuler
-            </Button>
-            <Button
-              onClick={handleGenerateSchedule}
-              variant="contained"
-              disabled={!scheduleName.trim() || isLoading}
-              startIcon={isLoading ? <CircularProgress size={20} /> : <PlayArrow />}
-            >
-              {isLoading ? 'Génération...' : 'Générer'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
+        {openGenerate && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setOpenGenerate(false)}></div>
+              
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+              
+              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                    Générer un nouvel emploi du temps
+                  </h3>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Nom de l'emploi du temps"
+                    value={scheduleName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setScheduleName(e.target.value)}
+                    onKeyPress={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' && scheduleName.trim()) {
+                        handleGenerateSchedule();
+                      }
+                    }}
+                  />
+                </div>
+                
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleGenerateSchedule}
+                    disabled={!scheduleName.trim()}
+                  >
+                    Générer
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                    onClick={() => setOpenGenerate(false)}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </Layout>
   );
 };

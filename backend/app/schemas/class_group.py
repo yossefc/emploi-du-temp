@@ -2,8 +2,8 @@
 Class group schemas for API validation.
 """
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, validator
 from enum import Enum
 
 
@@ -26,36 +26,78 @@ class ClassType(str, Enum):
 
 
 class ClassGroupBase(BaseModel):
-    """Base class group schema."""
-    code: str = Field(..., min_length=1, max_length=10)  # e.g., "9A", "10B"
-    name: str
-    grade: Grade
+    """Base class group schema with enhanced fields."""
+    code: str = Field(..., min_length=1, max_length=20, description="Unique class code")
+    nom: str = Field(..., min_length=1, max_length=255, description="Class name")
+    niveau: str = Field(..., min_length=1, max_length=50, description="Class level (e.g., '6ème', '5ème')")
+    effectif: int = Field(..., ge=1, le=50, description="Number of students")
+    
+    # Optional fields
     class_type: ClassType = ClassType.REGULAR
-    student_count: int = Field(..., ge=1, le=50)
+    description: Optional[str] = Field(None, description="Class description")
+    academic_year: Optional[str] = Field(None, max_length=20, description="Academic year (e.g., '2024-2025')")
+    
+    # Schedule preferences (JSON structure)
+    horaires_preferes: Optional[Dict[str, Any]] = Field(None, description="Preferred schedule slots")
+    
+    # Legacy compatibility fields
+    name: Optional[str] = Field(None, description="Legacy name field")
+    grade: Optional[Grade] = Field(None, description="Legacy grade field")
+    student_count: Optional[int] = Field(None, ge=1, le=50, description="Legacy student count")
+    
+    # Settings
     is_boys_only: bool = False
     is_girls_only: bool = False
     is_mixed: bool = True
     primary_language: str = Field(default="he", pattern="^(he|fr)$")
     homeroom_teacher_id: Optional[int] = None
+    is_active: bool = True
+
+    @validator('code')
+    def validate_code(cls, v):
+        """Validate class code format."""
+        if not v or not v.strip():
+            raise ValueError('Class code cannot be empty')
+        return v.strip().upper()
+    
+    @validator('effectif', 'student_count')
+    def validate_student_count(cls, v):
+        """Validate student count is reasonable."""
+        if v is not None and (v < 1 or v > 50):
+            raise ValueError('Student count must be between 1 and 50')
+        return v
 
 
 class ClassGroupCreate(ClassGroupBase):
     """Schema for class group creation."""
-    pass
+    # Subject IDs to assign as mandatory subjects
+    subject_ids: Optional[List[int]] = Field(None, description="List of mandatory subject IDs")
 
 
 class ClassGroupUpdate(BaseModel):
     """Schema for class group update."""
-    code: Optional[str] = Field(None, min_length=1, max_length=10)
-    name: Optional[str] = None
-    grade: Optional[Grade] = None
+    code: Optional[str] = Field(None, min_length=1, max_length=20)
+    nom: Optional[str] = Field(None, min_length=1, max_length=255)
+    niveau: Optional[str] = Field(None, min_length=1, max_length=50)
+    effectif: Optional[int] = Field(None, ge=1, le=50)
     class_type: Optional[ClassType] = None
-    student_count: Optional[int] = Field(None, ge=1, le=50)
+    description: Optional[str] = None
+    academic_year: Optional[str] = Field(None, max_length=20)
+    horaires_preferes: Optional[Dict[str, Any]] = None
     is_boys_only: Optional[bool] = None
     is_girls_only: Optional[bool] = None
     is_mixed: Optional[bool] = None
     primary_language: Optional[str] = Field(None, pattern="^(he|fr)$")
     homeroom_teacher_id: Optional[int] = None
+    is_active: Optional[bool] = None
+
+    @validator('code')
+    def validate_code(cls, v):
+        if v is not None:
+            if not v.strip():
+                raise ValueError('Class code cannot be empty')
+            return v.strip().upper()
+        return v
 
 
 class ClassGroupInDB(ClassGroupBase):
@@ -66,11 +108,47 @@ class ClassGroupInDB(ClassGroupBase):
         from_attributes = True
 
 
+class ClassGroupWithSubjects(ClassGroupInDB):
+    """Class group schema with assigned subjects."""
+    matieres_obligatoires: List['SubjectBasic'] = []
+    homeroom_teacher: Optional['TeacherBasic'] = None
+    
+    class Config:
+        from_attributes = True
+
+
 class ClassGroup(ClassGroupInDB):
     """Schema for class group response."""
-    subject_requirements: List["ClassSubjectRequirement"] = []
+    pass
 
 
+class ClassGroupBasic(BaseModel):
+    """Basic class group info for nested responses."""
+    id: int
+    code: str
+    nom: str
+    niveau: str
+    effectif: int
+    class_type: ClassType
+    
+    class Config:
+        from_attributes = True
+
+
+class ClassSubjectAssignment(BaseModel):
+    """Schema for assigning subjects to a class."""
+    subject_ids: List[int] = Field(..., min_items=1, description="List of subject IDs to assign")
+    
+    @validator('subject_ids')
+    def validate_subject_ids(cls, v):
+        if not v:
+            raise ValueError('At least one subject ID must be provided')
+        if len(set(v)) != len(v):
+            raise ValueError('Duplicate subject IDs are not allowed')
+        return v
+
+
+# Legacy schemas for compatibility
 class ClassSubjectRequirementBase(BaseModel):
     """Base schema for class subject requirements."""
     class_group_id: int
@@ -111,4 +189,4 @@ from app.schemas.subject import SubjectBasic
 from app.schemas.teacher import TeacherBasic
 
 ClassSubjectRequirement.model_rebuild()
-ClassGroup.model_rebuild() 
+ClassGroupWithSubjects.model_rebuild() 

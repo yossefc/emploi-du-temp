@@ -1,0 +1,3 @@
+"""
+Timetable solving algorithms
+""" 

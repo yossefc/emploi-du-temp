@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:password@localhost:5432/school_timetable"
+        "sqlite:///./school_timetable.db"
     )
     
     # Redis settings

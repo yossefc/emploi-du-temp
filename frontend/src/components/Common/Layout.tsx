@@ -1,77 +1,36 @@
 import React, { useState } from 'react';
+import { Transition } from '@headlessui/react';
 import {
-  Box,
-  Drawer,
-  AppBar,
-  Toolbar,
-  List,
-  Typography,
-  Divider,
-  IconButton,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  CssBaseline,
-  useTheme,
-  Avatar,
-  Menu,
-  MenuItem,
-} from '@mui/material';
-import {
-  Menu as MenuIcon,
-  ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-  Dashboard,
-  CalendarMonth,
-  People,
-  School,
-  MeetingRoom,
-  Settings,
-  Build,
-  Logout,
-  Language,
-  Person,
-} from '@mui/icons-material';
+  Bars3Icon,
+  XMarkIcon,
+  HomeIcon,
+  CalendarDaysIcon,
+  UserGroupIcon,
+  AcademicCapIcon,
+  BuildingOffice2Icon,
+  CogIcon,
+  WrenchScrewdriverIcon,
+  ArrowRightOnRectangleIcon,
+  LanguageIcon,
+  UserIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+import { Menu } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { logout } from '../../store/slices/authSlice';
-
-const drawerWidth = 240;
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const [open, setOpen] = useState(true);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [langAnchorEl, setLangAnchorEl] = useState<null | HTMLElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   
   const user = useAppSelector(state => state.auth.user);
-
-  const handleDrawerToggle = () => {
-    setOpen(!open);
-  };
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLanguageMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setLangAnchorEl(event.currentTarget);
-  };
-
-  const handleLanguageMenuClose = () => {
-    setLangAnchorEl(null);
-  };
 
   const handleLogout = async () => {
     await dispatch(logout());
@@ -79,197 +38,214 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const menuItems = [
-    { text: 'Tableau de bord', icon: <Dashboard />, path: '/dashboard' },
-    { text: 'Emploi du temps', icon: <CalendarMonth />, path: '/schedule' },
-    { text: 'Enseignants', icon: <People />, path: '/teachers' },
-    { text: 'Matières', icon: <School />, path: '/subjects' },
-    { text: 'Classes', icon: <School />, path: '/classes' },
-    { text: 'Salles', icon: <MeetingRoom />, path: '/rooms' },
-    { text: 'Contraintes', icon: <Build />, path: '/constraints' },
+    { text: 'Tableau de bord', icon: HomeIcon, path: '/dashboard' },
+    { text: 'Emploi du temps', icon: CalendarDaysIcon, path: '/schedule' },
+    { text: 'Enseignants', icon: UserGroupIcon, path: '/teachers' },
+    { text: 'Matières', icon: AcademicCapIcon, path: '/subjects' },
+    { text: 'Classes', icon: AcademicCapIcon, path: '/classes' },
+    { text: 'Salles', icon: BuildingOffice2Icon, path: '/rooms' },
+    { text: 'Contraintes', icon: WrenchScrewdriverIcon, path: '/constraints' },
   ];
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: `calc(100% - ${open ? drawerWidth : theme.spacing(7)}px)`,
-          ml: `${open ? drawerWidth : theme.spacing(7)}px`,
-          transition: theme.transitions.create(['margin', 'width'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-          }),
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="toggle drawer"
-            onClick={handleDrawerToggle}
-            edge="start"
-            sx={{ mr: 2 }}
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div className={`bg-white shadow-lg transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          {sidebarOpen && (
+            <h1 className="text-lg font-semibold text-gray-900">
+              Générateur EDT
+            </h1>
+          )}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1 rounded-md hover:bg-gray-100 transition-colors"
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Générateur d'Emplois du Temps
-          </Typography>
-          
-          <IconButton color="inherit" onClick={handleLanguageMenuOpen}>
-            <Language />
-          </IconButton>
-          
-          <IconButton onClick={handleProfileMenuOpen} sx={{ ml: 2 }}>
-            <Avatar sx={{ width: 32, height: 32 }}>
-              {user?.username?.charAt(0).toUpperCase()}
-            </Avatar>
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
-      <Drawer
-        sx={{
-          width: open ? drawerWidth : theme.spacing(7),
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: open ? drawerWidth : theme.spacing(7),
-            boxSizing: 'border-box',
-            transition: theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-            overflowX: 'hidden',
-          },
-        }}
-        variant="permanent"
-        anchor="left"
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: open ? 'flex-end' : 'center',
-            padding: theme.spacing(0, 1),
-            ...theme.mixins.toolbar,
-          }}
-        >
-          <IconButton onClick={handleDrawerToggle}>
-            {theme.direction === 'ltr' ? (
-              open ? <ChevronLeftIcon /> : <ChevronRightIcon />
+            {sidebarOpen ? (
+              <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
             ) : (
-              open ? <ChevronRightIcon /> : <ChevronLeftIcon />
+              <ChevronRightIcon className="h-5 w-5 text-gray-600" />
             )}
-          </IconButton>
-        </Box>
-        <Divider />
-        <List>
-          {menuItems.map((item) => (
-            <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
-              <ListItemButton
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? 'initial' : 'center',
-                  px: 2.5,
-                }}
-                onClick={() => navigate(item.path)}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : 'auto',
-                    justifyContent: 'center',
-                  }}
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="mt-4">
+          <ul className="space-y-1 px-2">
+            {menuItems.map((item) => (
+              <li key={item.text}>
+                <button
+                  onClick={() => navigate(item.path)}
+                  className={`
+                    w-full flex items-center px-3 py-2 text-sm font-medium rounded-md
+                    text-gray-700 hover:bg-gray-100 hover:text-gray-900
+                    transition-colors duration-200
+                    ${!sidebarOpen ? 'justify-center' : ''}
+                  `}
+                  title={!sidebarOpen ? item.text : undefined}
                 >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        <Divider />
-        <List>
-          <ListItem disablePadding sx={{ display: 'block' }}>
-            <ListItemButton
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-              }}
-              onClick={() => navigate('/settings')}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 3 : 'auto',
-                  justifyContent: 'center',
-                }}
+                  <item.icon className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                  {sidebarOpen && <span>{item.text}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* Settings */}
+        <div className="absolute bottom-0 w-full border-t border-gray-200 p-2">
+          <button
+            onClick={() => navigate('/settings')}
+            className={`
+              w-full flex items-center px-3 py-2 text-sm font-medium rounded-md
+              text-gray-700 hover:bg-gray-100 hover:text-gray-900
+              transition-colors duration-200
+              ${!sidebarOpen ? 'justify-center' : ''}
+            `}
+            title={!sidebarOpen ? 'Paramètres' : undefined}
+          >
+            <CogIcon className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+            {sidebarOpen && <span>Paramètres</span>}
+          </button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-md hover:bg-gray-100"
               >
-                <Settings />
-              </ListItemIcon>
-              <ListItemText primary="Paramètres" sx={{ opacity: open ? 1 : 0 }} />
-            </ListItemButton>
-          </ListItem>
-        </List>
-      </Drawer>
+                <Bars3Icon className="h-6 w-6 text-gray-600" />
+              </button>
+              <h2 className="text-xl font-semibold text-gray-900 ml-2">
+                Générateur d'Emplois du Temps
+              </h2>
+            </div>
 
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          bgcolor: 'background.default',
-          p: 3,
-          width: `calc(100% - ${open ? drawerWidth : theme.spacing(7)}px)`,
-          ml: `${open ? drawerWidth : theme.spacing(7)}px`,
-          transition: theme.transitions.create(['margin', 'width'], {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-          }),
-        }}
-      >
-        <Toolbar />
-        {children}
-      </Box>
+            <div className="flex items-center space-x-4">
+              {/* Language selector */}
+              <Menu as="div" className="relative">
+                <Menu.Button className="p-2 rounded-md hover:bg-gray-100 transition-colors">
+                  <LanguageIcon className="h-5 w-5 text-gray-600" />
+                </Menu.Button>
+                <Transition
+                  enter="transition ease-out duration-100"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="py-1">
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } block px-4 py-2 text-sm text-gray-700 w-full text-left`}
+                          >
+                            Français
+                          </button>
+                        )}
+                      </Menu.Item>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } block px-4 py-2 text-sm text-gray-700 w-full text-left`}
+                          >
+                            עברית
+                          </button>
+                        )}
+                      </Menu.Item>
+                    </div>
+                  </Menu.Items>
+                </Transition>
+              </Menu>
 
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleProfileMenuClose}
-      >
-        <MenuItem onClick={() => navigate('/profile')}>
-          <ListItemIcon>
-            <Person />
-          </ListItemIcon>
-          Profil
-        </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
-            <Logout />
-          </ListItemIcon>
-          Déconnexion
-        </MenuItem>
-      </Menu>
+              {/* User menu */}
+              <Menu as="div" className="relative">
+                <Menu.Button className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 transition-colors">
+                  <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">
+                      {user?.username?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">{user?.username}</span>
+                </Menu.Button>
+                <Transition
+                  enter="transition ease-out duration-100"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="py-1">
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={() => navigate('/profile')}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } flex items-center px-4 py-2 text-sm text-gray-700 w-full text-left`}
+                          >
+                            <UserIcon className="h-4 w-4 mr-2" />
+                            Mon profil
+                          </button>
+                        )}
+                      </Menu.Item>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={() => navigate('/settings')}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } flex items-center px-4 py-2 text-sm text-gray-700 w-full text-left`}
+                          >
+                            <CogIcon className="h-4 w-4 mr-2" />
+                            Paramètres
+                          </button>
+                        )}
+                      </Menu.Item>
+                      <div className="border-t border-gray-100">
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              onClick={handleLogout}
+                              className={`${
+                                active ? 'bg-gray-100' : ''
+                              } flex items-center px-4 py-2 text-sm text-gray-700 w-full text-left`}
+                            >
+                              <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
+                              Déconnexion
+                            </button>
+                          )}
+                        </Menu.Item>
+                      </div>
+                    </div>
+                  </Menu.Items>
+                </Transition>
+              </Menu>
+            </div>
+          </div>
+        </header>
 
-      <Menu
-        anchorEl={langAnchorEl}
-        open={Boolean(langAnchorEl)}
-        onClose={handleLanguageMenuClose}
-      >
-        <MenuItem onClick={() => {
-          // TODO: Implement language change
-          handleLanguageMenuClose();
-        }}>
-          Français
-        </MenuItem>
-        <MenuItem onClick={() => {
-          // TODO: Implement language change
-          handleLanguageMenuClose();
-        }}>
-          עברית
-        </MenuItem>
-      </Menu>
-    </Box>
+        {/* Main content area */}
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 };
 
