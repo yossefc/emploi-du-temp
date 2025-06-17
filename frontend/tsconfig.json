@@ -21,7 +21,6 @@
     "jsx": "react-jsx",
     "baseUrl": "src",
     "downlevelIteration": true,
-    "types": ["vitest/globals", "jest", "@testing-library/jest-dom"],
     "paths": {
       "@/*": ["*"],
       "@components/*": ["components/*"],
