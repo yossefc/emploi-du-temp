@@ -1,0 +1,394 @@
+version: '3.8'
+
+services:
+  # === APPLICATION PRINCIPALE ===
+  
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      target: production
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://school_user:${DB_PASSWORD}@postgres:5432/school_timetable
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - app_uploads:/app/uploads
+      - app_backups:/app/backups
+      - app_logs:/var/log/school-timetable
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
+
+  # === FRONTEND ===
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      target: production
+    restart: unless-stopped
+    environment:
+      - REACT_APP_API_URL=https://${DOMAIN}/api/v1
+      - REACT_APP_ENVIRONMENT=production
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.2'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # === BASE DE DONNÉES ===
+  
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=school_timetable
+      - POSTGRES_USER=school_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+      - postgres_backups:/backups
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U school_user -d school_timetable"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=100
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  # === CACHE REDIS ===
+  
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.5'
+        reservations:
+          memory: 150M
+          cpus: '0.1'
+
+  # === REVERSE PROXY ===
+  
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+      - --accesslog=true
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard (protégé par auth)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+      - traefik_logs:/var/log/traefik
+    networks:
+      - app_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}"
+
+  # === MONITORING ===
+  
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    networks:
+      - app_network
+    depends_on:
+      - app
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.prometheus.middlewares=auth"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=${SMTP_HOST}:587
+      - GF_SMTP_USER=${SMTP_USERNAME}
+      - GF_SMTP_PASSWORD=${SMTP_PASSWORD}
+      - GF_SMTP_FROM_ADDRESS=alerts@${DOMAIN}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - app_network
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=https://alertmanager.${DOMAIN}'
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    networks:
+      - app_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.${DOMAIN}`)"
+      - "traefik.http.routers.alertmanager.tls=true"
+      - "traefik.http.routers.alertmanager.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.alertmanager.middlewares=auth"
+
+  # === LOGGING ===
+  
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    networks:
+      - app_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - app_logs:/var/log/school-timetable:ro
+      - traefik_logs:/var/log/traefik:ro
+      - /var/log:/var/log:ro
+    networks:
+      - app_network
+    depends_on:
+      - loki
+
+  # === BACKUP ===
+  
+  backup:
+    build:
+      context: ./docker/backup
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=school_timetable
+      - POSTGRES_USER=school_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - BACKUP_SCHEDULE=0 2 * * *  # Tous les jours à 2h
+      - BACKUP_RETENTION_DAYS=30
+      - S3_BUCKET=${BACKUP_S3_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - postgres_backups:/backups
+      - app_backups:/app_backups
+    networks:
+      - app_network
+    depends_on:
+      - postgres
+
+  # === WATCHTOWER (Auto-updates) ===
+  
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_NOTIFICATIONS=slack
+      - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=${SLACK_WEBHOOK_URL}
+      - WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER=${DOMAIN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 --cleanup
+
+# === VOLUMES ===
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_backups:
+    driver: local
+  redis_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_backups:
+    driver: local
+  app_logs:
+    driver: local
+  traefik_letsencrypt:
+    driver: local
+  traefik_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  loki_data:
+    driver: local
+
+# === NETWORKS ===
+
+networks:
+  app_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

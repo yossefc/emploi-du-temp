@@ -1,0 +1,195 @@
+# =============================================================================
+# Stage 1: Base Image avec dépendances système
+# =============================================================================
+FROM python:3.11-slim-bullseye as base
+
+# Variables d'environnement pour optimisation
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    POETRY_VERSION=1.6.1
+
+# Installation des dépendances système nécessaires
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    curl \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Installation de Poetry
+RUN pip install poetry==$POETRY_VERSION
+
+# Configuration Poetry
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VENV_IN_PROJECT=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+# =============================================================================
+# Stage 2: Dependencies Builder
+# =============================================================================
+FROM base as dependencies
+
+WORKDIR /app
+
+# Copier les fichiers de configuration Poetry
+COPY pyproject.toml poetry.lock* ./
+
+# Installer les dépendances avec Poetry
+RUN poetry install --only=main --no-dev && rm -rf $POETRY_CACHE_DIR
+
+# =============================================================================
+# Stage 3: Application Builder
+# =============================================================================
+FROM dependencies as builder
+
+# Copier le code source
+COPY . .
+
+# Créer un utilisateur non-root pour la sécurité
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
+# Créer les répertoires nécessaires
+RUN mkdir -p /app/logs /app/uploads /app/backups && \
+    chown -R appuser:appuser /app
+
+# =============================================================================
+# Stage 4: Development
+# =============================================================================
+FROM builder as development
+
+# Installer les dépendances de développement
+RUN poetry install --with=dev
+
+# Exposer le port de développement
+EXPOSE 8000
+
+# Commande par défaut pour le développement
+USER appuser
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# =============================================================================
+# Stage 5: Testing
+# =============================================================================
+FROM builder as testing
+
+# Installer les outils de test
+RUN poetry install --with=dev
+
+# Copier les fichiers de test
+COPY tests/ ./tests/
+
+# Exécuter les tests
+RUN python -m pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
+
+# =============================================================================
+# Stage 6: Production
+# =============================================================================
+FROM python:3.11-slim-bullseye as production
+
+# Variables d'environnement pour la production
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    ENVIRONMENT=production \
+    WORKERS=4
+
+# Installation des dépendances runtime uniquement
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Créer l'utilisateur applicatif
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier le virtual environment depuis le stage dependencies
+COPY --from=dependencies /app/.venv /app/.venv
+
+# S'assurer que l'environment virtuel est dans le PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Copier le code de l'application
+COPY --from=builder --chown=appuser:appuser /app .
+
+# Créer les répertoires nécessaires avec les bonnes permissions
+RUN mkdir -p /var/log/school-timetable /app/uploads /app/backups && \
+    chown -R appuser:appuser /var/log/school-timetable /app/uploads /app/backups && \
+    chmod 755 /var/log/school-timetable /app/uploads /app/backups
+
+# Créer un script de healthcheck
+COPY <<EOF /app/healthcheck.sh
+#!/bin/bash
+curl -f http://localhost:8000/health || exit 1
+EOF
+
+RUN chmod +x /app/healthcheck.sh && \
+    chown appuser:appuser /app/healthcheck.sh
+
+# Créer un script d'entrée pour la production
+COPY <<EOF /app/entrypoint.prod.sh
+#!/bin/bash
+set -e
+
+echo "Starting production deployment..."
+
+# Attendre que la base de données soit prête
+echo "Waiting for database..."
+while ! python -c "import psycopg2; psycopg2.connect('\${DATABASE_URL}')" 2>/dev/null; do
+    sleep 2
+done
+echo "Database is ready!"
+
+# Exécuter les migrations
+echo "Running database migrations..."
+alembic upgrade head
+
+# Créer les répertoires nécessaires
+mkdir -p /app/logs /app/uploads
+
+echo "Starting uvicorn server..."
+exec uvicorn app.main:app \\
+    --host 0.0.0.0 \\
+    --port 8000 \\
+    --workers \${WORKERS:-4} \\
+    --worker-class uvicorn.workers.UvicornWorker \\
+    --access-log \\
+    --error-log \\
+    --log-level info
+EOF
+
+RUN chmod +x /app/entrypoint.prod.sh && \
+    chown appuser:appuser /app/entrypoint.prod.sh
+
+# Exposer le port
+EXPOSE 8000
+
+# Configuration du healthcheck
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD /app/healthcheck.sh
+
+# Passer à l'utilisateur non-root
+USER appuser
+
+# Commande par défaut
+ENTRYPOINT ["/app/entrypoint.prod.sh"]
+
+# =============================================================================
+# Labels pour metadata
+# =============================================================================
+LABEL maintainer="School Team <team@school.com>" \
+      version="1.0.0" \
+      description="École Emploi du Temps - API Backend" \
+      org.opencontainers.image.title="School Timetable API" \
+      org.opencontainers.image.description="API backend pour la gestion d'emplois du temps scolaires" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.vendor="School Team" \
+      org.opencontainers.image.licenses="MIT" 

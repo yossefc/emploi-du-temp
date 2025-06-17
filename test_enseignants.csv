@@ -1,0 +1,6 @@
+prenom,nom,classe,type_classe,matiere,sous_matiere,heures_par_semaine,disponibilites,contraintes_speciales
+Jean,Dupont,6e1,classe,Mathématiques,Algèbre,4,"Lundi matin; Mercredi après-midi; Vendredi matin","Pas de vendredi après-midi"
+Marie,Martin,י1,promotion,Français,Littérature,3,"Mardi matin; Jeudi matin; Vendredi matin","Max 6h par jour"
+Pierre,Durand,5e2,classe,Sciences,Physique,5,"Lundi après-midi; Mardi matin; Mercredi matin","Pas le lundi matin"
+Sarah,Cohen,ח2,promotion,Histoire,Histoire moderne,2,"Mercredi après-midi; Jeudi après-midi","Préfère l'après-midi"
+Ahmed,Benali,4e1,classe,Anglais,,4,"Mardi matin; Mercredi matin; Jeudi matin; Vendredi matin","" 

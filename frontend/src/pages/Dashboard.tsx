@@ -19,7 +19,6 @@ interface StatCard {
 }
 
 const Dashboard: React.FC = () => {
-  const { user } = useAppSelector(state => state.auth);
   const { currentSchedule } = useAppSelector(state => state.schedule);
 
   // Mock schedules data for stats
@@ -75,7 +74,7 @@ const Dashboard: React.FC = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Tableau de bord</h1>
-          <p className="text-gray-600 mt-1">Bienvenue, {user?.username} !</p>
+          <p className="text-gray-600 mt-1">Bienvenue dans le générateur d'emploi du temps !</p>
         </div>
 
         {/* Cartes de statistiques */}
@@ -139,70 +138,64 @@ const Dashboard: React.FC = () => {
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Statut du système</h2>
             </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-sm text-gray-700">Base de données : Connectée</span>
-                </div>
-                
-                <div className="flex items-center">
-                  <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-sm text-gray-700">Solver OR-Tools : Prêt</span>
-                </div>
-                
-                <div className="flex items-center">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mr-3" />
-                  <span className="text-sm text-gray-700">Agent IA : Configuration requise</span>
-                </div>
-                
-                <div className="flex items-center">
-                  <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-sm text-gray-700">API : En ligne</span>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center space-x-3">
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Base de données</p>
+                  <p className="text-xs text-gray-500">Connectée</p>
                 </div>
               </div>
-              
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Utilisation mémoire</span>
-                  <span className="text-sm text-gray-500">35%</span>
+              <div className="flex items-center space-x-3">
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Algorithme</p>
+                  <p className="text-xs text-gray-500">Opérationnel</p>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '35%' }}></div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Contraintes</p>
+                  <p className="text-xs text-gray-500">2 conflits détectés</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">2.1 GB / 6 GB</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Actions rapides */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <CalendarDaysIcon className="h-8 w-8 text-blue-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Générer un emploi du temps</p>
-                <p className="text-sm text-gray-500">Créer un nouvel emploi du temps</p>
-              </div>
-            </button>
-            
-            <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <UserGroupIcon className="h-8 w-8 text-green-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Gérer les enseignants</p>
-                <p className="text-sm text-gray-500">Ajouter ou modifier des enseignants</p>
-              </div>
-            </button>
-            
-            <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <AcademicCapIcon className="h-8 w-8 text-purple-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Gérer les classes</p>
-                <p className="text-sm text-gray-500">Configurer les classes et matières</p>
-              </div>
-            </button>
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Actions rapides</h2>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button
+                onClick={() => window.location.href = '/teachers'}
+                className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              >
+                <UserGroupIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-gray-900">Gérer les enseignants</p>
+                <p className="text-xs text-gray-500 mt-1">Ajouter ou modifier</p>
+              </button>
+              <button
+                onClick={() => window.location.href = '/subjects'}
+                className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              >
+                <AcademicCapIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-gray-900">Gérer les matières</p>
+                <p className="text-xs text-gray-500 mt-1">Configurer les cours</p>
+              </button>
+              <button
+                onClick={() => window.location.href = '/schedule-generation'}
+                className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              >
+                <CalendarDaysIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-gray-900">Générer un emploi</p>
+                <p className="text-xs text-gray-500 mt-1">Nouvel emploi du temps</p>
+              </button>
+            </div>
           </div>
         </div>
       </div>

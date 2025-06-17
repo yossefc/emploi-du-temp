@@ -12,7 +12,8 @@ from app.api.api_v1.endpoints import (
     class_groups,
     rooms,
     schedules,
-    ai
+    ai,
+    import_data
 )
 
 api_router = APIRouter()
@@ -25,4 +26,5 @@ api_router.include_router(subjects.router, prefix="/subjects", tags=["subjects"]
 api_router.include_router(class_groups.router, prefix="/classes", tags=["classes"])
 api_router.include_router(rooms.router, prefix="/rooms", tags=["rooms"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["schedules"])
-api_router.include_router(ai.router, prefix="/ai", tags=["ai"]) 
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(import_data.router, prefix="/import", tags=["import"]) 
