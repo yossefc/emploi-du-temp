@@ -4,7 +4,7 @@ Database models package.
 
 from app.models.user import User, UserRole
 from app.models.teacher import Teacher, teacher_subjects
-from app.models.subject import Subject, SubjectType
+from app.models.subject import Subject, SubjectType, configure_subject_relationships
 from app.models.class_group import ClassGroup, Grade, ClassType
 from app.models.room import Room, RoomType
 from app.models.constraint import (
@@ -17,6 +17,9 @@ from app.models.constraint import (
     GlobalConstraint
 )
 from app.models.schedule import Schedule, ScheduleEntry, ScheduleConflict
+
+# Configure relationships after all models are imported
+configure_subject_relationships()
 
 __all__ = [
     # User models

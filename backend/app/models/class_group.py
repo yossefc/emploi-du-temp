@@ -2,8 +2,9 @@
 ClassGroup model for managing student classes.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON, Text, ForeignKey, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON, Text, ForeignKey, Table, DateTime
+from sqlalchemy.orm import relationship, validates
+from sqlalchemy.sql import func
 import enum
 
 from app.db.base import Base
@@ -43,20 +44,15 @@ class ClassGroup(Base):
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(20), unique=True, index=True, nullable=False)  # e.g., "9A", "10B"
     
-    # Basic information
-    nom = Column(String(255), nullable=False)  # Class name
-    niveau = Column(String(50), nullable=False)  # Level (e.g., "6ème", "5ème")
-    effectif = Column(Integer, nullable=False)  # Number of students
-    
-    # Legacy fields for compatibility
-    name = Column(String(255), nullable=True)
-    grade = Column(Enum(Grade), nullable=True)
-    student_count = Column(Integer, nullable=True)
+    # Basic information - unified English names
+    name = Column(String(255), nullable=False)  # Class name
+    grade_level = Column(String(50), nullable=False)  # Level (e.g., "6ème", "5ème")
+    student_count = Column(Integer, nullable=False)  # Number of students
     
     class_type = Column(Enum(ClassType), default=ClassType.REGULAR)
     
     # Schedule preferences (JSON format)
-    horaires_preferes = Column(JSON, nullable=True)  # Preferred schedule slots
+    schedule_preferences = Column(JSON, nullable=True)  # Preferred schedule slots
     
     # Additional metadata
     description = Column(Text, nullable=True)
@@ -71,11 +67,13 @@ class ClassGroup(Base):
     # Homeroom teacher
     homeroom_teacher_id = Column(Integer, ForeignKey('teachers.id'), nullable=True)
     
-    # Status
+    # Status and timestamps
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    matieres_obligatoires = relationship(
+    subjects = relationship(
         "Subject", 
         secondary=class_group_subjects, 
         back_populates="class_groups",
@@ -83,7 +81,40 @@ class ClassGroup(Base):
     )
     
     homeroom_teacher = relationship("Teacher", foreign_keys=[homeroom_teacher_id])
-    
-    # Legacy relationships
     subject_requirements = relationship("ClassSubjectRequirement", back_populates="class_group", cascade="all, delete-orphan")
-    schedules = relationship("ScheduleEntry", back_populates="class_group") 
+    schedule_entries = relationship("ScheduleEntry", back_populates="class_group")
+    
+    # Validations
+    @validates('student_count')
+    def validate_student_count(self, key, value):
+        if value is not None and value < 0:
+            raise ValueError("Student count cannot be negative")
+        return value
+    
+    @validates('code')
+    def validate_code(self, key, value):
+        if not value or len(value.strip()) == 0:
+            raise ValueError("Class code cannot be empty")
+        return value.strip().upper()
+    
+    # Properties
+    @property
+    def display_name(self):
+        """Get formatted display name."""
+        return f"{self.code} - {self.name}"
+    
+    @property
+    def is_gender_separated(self):
+        """Check if class is gender separated."""
+        return self.is_boys_only or self.is_girls_only
+    
+    @property
+    def grade_numeric(self):
+        """Get numeric grade level."""
+        try:
+            return int(self.grade_level)
+        except (ValueError, TypeError):
+            return None
+    
+    def __repr__(self):
+        return f"<ClassGroup(id={self.id}, code='{self.code}', name='{self.name}', students={self.student_count})>" 
