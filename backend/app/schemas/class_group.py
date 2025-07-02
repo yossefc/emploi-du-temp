@@ -151,7 +151,7 @@ class ClassSubjectAssignment(BaseModel):
 # Legacy schemas for compatibility
 class ClassSubjectRequirementBase(BaseModel):
     """Base schema for class subject requirements."""
-    class_group_id: int
+    class_id: int
     subject_id: int
     hours_per_week: int = Field(..., ge=1, le=10)
     preferred_teacher_id: Optional[int] = None

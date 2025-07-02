@@ -7,7 +7,7 @@ Run this script to test the solver functionality:
 
 import logging
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.db.base import get_db
 from app.solver.simplified_solver import SimplifiedTimetableSolver
 
 # Set up logging

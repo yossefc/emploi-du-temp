@@ -262,9 +262,9 @@ class TeacherUpdate(BaseModel):
         from_attributes = True
         json_schema_extra = {
             "example": {
-                "email": "new.email@school.edu",
+                "first_name": "Jean-Updated",
                 "max_hours_per_week": 35,
-                "is_active": False
+                "subject_ids": [1, 2, 4]
             }
         }
 
@@ -272,7 +272,9 @@ class TeacherUpdate(BaseModel):
 class TeacherResponse(TeacherBase):
     """Schema for teacher response."""
     id: int = Field(description="Teacher unique identifier")
-    
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+
     @property
     def full_name(self) -> str:
         """Get teacher's full name."""
@@ -294,18 +296,31 @@ class TeacherResponse(TeacherBase):
                 "is_active": True,
                 "primary_language": "fr",
                 "can_teach_in_french": True,
-                "can_teach_in_hebrew": False
+                "can_teach_in_hebrew": False,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z"
             }
         }
 
 
+class SubjectBasic(BaseModel):
+    """Basic subject info for nested responses."""
+    id: int = Field(description="Subject unique identifier")
+    code: str = Field(description="Subject code")
+    name_he: str = Field(description="Subject name in Hebrew")
+    name_fr: str = Field(description="Subject name in French")
+    
+    class Config:
+        from_attributes = True
+
+
 class TeacherWithSubjects(TeacherResponse):
     """Schema for teacher response with subject relations."""
-    subjects: List["SubjectBasic"] = Field(
+    subjects: List[SubjectBasic] = Field(
         default=[],
         description="List of subjects this teacher can teach"
     )
-    
+
     class Config:
         from_attributes = True
         json_schema_extra = {
@@ -323,25 +338,20 @@ class TeacherWithSubjects(TeacherResponse):
                 "primary_language": "fr",
                 "can_teach_in_french": True,
                 "can_teach_in_hebrew": False,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
                 "subjects": [
                     {
                         "id": 1,
-                        "code": "MATH",
+                        "code": "MATH101",
                         "name_he": "מתמטיקה",
                         "name_fr": "Mathématiques"
-                    },
-                    {
-                        "id": 2,
-                        "code": "PHYS",
-                        "name_he": "פיזיקה", 
-                        "name_fr": "Physique"
                     }
                 ]
             }
         }
 
 
-# Existing schemas with improvements
 class TeacherAvailabilityBase(BaseModel):
     """Base schema for teacher availability."""
     teacher_id: int = Field(description="Teacher ID")
@@ -362,12 +372,12 @@ class TeacherAvailabilityBase(BaseModel):
     )
     is_available: bool = Field(
         default=True,
-        description="Whether teacher is available during this period"
+        description="Whether teacher is available during this time"
     )
 
     @validator('end_time')
     def validate_time_range(cls, v, values):
-        """Ensure end time is after start time."""
+        """Validate that end time is after start time."""
         start_time = values.get('start_time')
         if start_time and v <= start_time:
             raise ValueError('End time must be after start time')
@@ -385,10 +395,10 @@ class TeacherAvailabilityCreate(TeacherAvailabilityBase):
         json_schema_extra = {
             "example": {
                 "teacher_id": 1,
-                "day_of_week": 1,
+                "day_of_week": 0,
                 "start_time": "08:00:00",
                 "end_time": "12:00:00",
-                "is_available": True
+                "is_available": False
             }
         }
 
@@ -407,24 +417,102 @@ class TeacherBasic(BaseModel):
     code: str = Field(description="Teacher code")
     first_name: str = Field(description="Teacher's first name")
     last_name: str = Field(description="Teacher's last name")
-    
+
     @property
     def full_name(self) -> str:
         """Get teacher's full name."""
         return f"{self.first_name} {self.last_name}"
-    
+
     class Config:
         from_attributes = True
         json_schema_extra = {
             "example": {
                 "id": 1,
-                "code": "T001", 
+                "code": "T001",
                 "first_name": "Jean",
                 "last_name": "Dupont"
             }
         }
 
 
-# Import at the end to avoid circular imports
-from app.schemas.subject import SubjectBasic
-TeacherWithSubjects.model_rebuild() 
+# ============================================================================
+# MISSING SCHEMAS FOR SERVICE LAYER
+# ============================================================================
+
+class TeacherWorkload(BaseModel):
+    """Schema for teacher workload analysis."""
+    teacher_id: int = Field(description="Teacher ID")
+    total_hours_assigned: int = Field(description="Total assigned teaching hours")
+    max_hours_per_week: int = Field(description="Teacher's maximum hours per week")
+    utilization_percentage: float = Field(description="Workload utilization percentage")
+    hours_by_day: Dict[int, int] = Field(description="Hours assigned per day")
+    hours_by_subject: Dict[int, int] = Field(description="Hours assigned per subject")
+    academic_year: str = Field(description="Academic year")
+    semester: str = Field(description="Semester")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "teacher_id": 1,
+                "total_hours_assigned": 25,
+                "max_hours_per_week": 30,
+                "utilization_percentage": 83.33,
+                "hours_by_day": {0: 5, 1: 6, 2: 4, 3: 5, 4: 5},
+                "hours_by_subject": {1: 10, 2: 8, 3: 7},
+                "academic_year": "2024-2025",
+                "semester": "1"
+            }
+        }
+
+
+class TeacherAvailable(BaseModel):
+    """Schema for available teachers."""
+    teacher_id: int = Field(description="Teacher ID")
+    code: str = Field(description="Teacher code")
+    full_name: str = Field(description="Teacher's full name")
+    subjects: List[str] = Field(description="Subject codes teacher can teach")
+    max_hours_per_week: int = Field(description="Maximum hours per week")
+    current_hours: int = Field(description="Currently assigned hours")
+    available_languages: List[str] = Field(description="Languages teacher can teach in")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "teacher_id": 1,
+                "code": "T001",
+                "full_name": "Jean Dupont",
+                "subjects": ["MATH101", "SCI101"],
+                "max_hours_per_week": 30,
+                "current_hours": 15,
+                "available_languages": ["fr", "he"]
+            }
+        }
+
+
+class TeacherSubjectAssignment(BaseModel):
+    """Schema for assigning subjects to a teacher."""
+    subject_ids: List[int] = Field(
+        description="List of subject IDs to assign to the teacher",
+        min_items=1
+    )
+
+    @validator('subject_ids')
+    def validate_subject_ids(cls, v):
+        """Validate subject IDs."""
+        if len(v) != len(set(v)):
+            raise ValueError('Subject IDs must be unique')
+        return v
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "subject_ids": [1, 2, 3]
+            }
+        }
+
+
+# Use Teacher as the main response schema
+Teacher = TeacherWithSubjects 

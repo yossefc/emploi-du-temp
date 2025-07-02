@@ -11,12 +11,12 @@ from app.core.auth import get_current_active_user, require_admin
 from app.db.base import get_db
 from app.models import User, Schedule, ScheduleEntry
 from app.schemas.schedule import (
-    Schedule as ScheduleSchema,
+    ScheduleResponse as ScheduleSchema,
     ScheduleCreate,
     ScheduleUpdate,
     GenerateScheduleRequest,
     GenerateScheduleResponse,
-    ScheduleEntry as ScheduleEntrySchema
+    ScheduleEntryResponse as ScheduleEntrySchema
 )
 from app.solver.timetable_solver import TimetableSolver
 from app.core.config import settings

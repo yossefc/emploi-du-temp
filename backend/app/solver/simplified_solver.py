@@ -113,9 +113,9 @@ class SimplifiedTimetableSolver:
         """Load class subject requirements."""
         requirements = self.db.query(ClassSubjectRequirement).all()
         for req in requirements:
-            key = (req.class_group_id, req.subject_id)
+            key = (req.class_id, req.subject_id)
             self.class_requirements[key] = req.hours_per_week
-            logger.debug(f"Class {req.class_group_id} needs {req.hours_per_week} hours of subject {req.subject_id}")
+            logger.debug(f"Class {req.class_id} needs {req.hours_per_week} hours of subject {req.subject_id}")
         
         logger.info(f"Loaded {len(self.class_requirements)} class requirements")
     
