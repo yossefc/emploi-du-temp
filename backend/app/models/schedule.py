@@ -76,10 +76,10 @@ class ScheduleEntry(Base):
     
     # Relationships
     schedule = relationship("Schedule", back_populates="entries")
-    class_group = relationship("ClassGroup", back_populates="schedules")
+    class_group = relationship("ClassGroup", back_populates="schedule_entries")
     subject = relationship("Subject")
     teacher = relationship("Teacher")
-    room = relationship("Room", back_populates="schedules")
+    room = relationship("Room", back_populates="schedule_entries")
 
 
 class ScheduleConflict(Base):

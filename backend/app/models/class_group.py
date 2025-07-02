@@ -80,7 +80,7 @@ class ClassGroup(Base):
         lazy="select"
     )
     
-    homeroom_teacher = relationship("Teacher", foreign_keys=[homeroom_teacher_id])
+    homeroom_teacher = relationship("Teacher", foreign_keys=[homeroom_teacher_id], overlaps="homeroom_classes")
     subject_requirements = relationship("ClassSubjectRequirement", back_populates="class_group", cascade="all, delete-orphan")
     schedule_entries = relationship("ScheduleEntry", back_populates="class_group")
     

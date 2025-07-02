@@ -2,7 +2,7 @@
 Teacher schemas for API validation.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import time
 
@@ -118,6 +118,43 @@ class TeacherBasic(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class TeacherSubjectAssignment(BaseModel):
+    """Schema for assigning subjects to a teacher."""
+    subject_ids: List[int] = Field(..., min_items=1, description="List of subject IDs to assign")
+
+
+class TeacherWorkload(BaseModel):
+    """Schema for teacher workload information."""
+    teacher_id: int
+    teacher_name: str
+    current_hours_per_week: int
+    max_hours_per_week: int
+    current_hours_per_day: Dict[str, int] = {}  # day_name -> hours
+    subjects_count: int
+    classes_count: int
+    workload_percentage: float
+    is_overloaded: bool
+    available_slots: List[Dict[str, Any]] = []
+    schedule_conflicts: List[str] = []
+    academic_year: Optional[str] = None
+    semester: Optional[int] = None
+
+
+class TeacherAvailable(BaseModel):
+    """Schema for available teachers."""
+    teacher_id: int
+    teacher_code: str
+    teacher_name: str
+    primary_language: str
+    can_teach_subjects: List[str] = []
+    availability_score: float = Field(ge=0, le=1, description="0-1 availability score")
+    years_experience: Optional[int] = None
+    max_hours_remaining: int
+    current_workload_percentage: float
+    available_periods: List[Dict[str, Any]] = []
+    specializations: List[str] = []
 
 
 # Import at the end to avoid circular imports
