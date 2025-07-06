@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 from typing import Union
+from sqlalchemy import text
 
 from app.config.environments import settings
 from app.api.api_v1.api import api_router
@@ -103,7 +104,7 @@ async def health_check():
     try:
         # Test database connection
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
         
         return {
             "status": "healthy", 

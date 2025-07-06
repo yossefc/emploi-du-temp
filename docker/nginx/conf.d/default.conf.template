@@ -1,0 +1,97 @@
+# =============================================================================
+# Default Nginx Server Configuration Template
+# Variables will be substituted by envsubst
+# =============================================================================
+
+server {
+    listen 80;
+    server_name localhost;
+    
+    # =============================================================================
+    # API PROXY
+    # =============================================================================
+    
+    location /api/ {
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # CORS headers
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization" always;
+        
+        # Handle preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS";
+            add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization";
+            add_header Access-Control-Max-Age 1728000;
+            add_header Content-Type "text/plain; charset=utf-8";
+            add_header Content-Length 0;
+            return 204;
+        }
+    }
+    
+    # WebSocket support
+    location /ws {
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT}/health;
+        access_log off;
+    }
+    
+    # Documentation
+    location /docs {
+        proxy_pass http://${NGINX_BACKEND_HOST}:${NGINX_BACKEND_PORT}/docs;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # =============================================================================
+    # FRONTEND PROXY
+    # =============================================================================
+    
+    location / {
+        proxy_pass http://${NGINX_FRONTEND_HOST}:${NGINX_FRONTEND_PORT};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Support for hot reload in development
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass $http_upgrade;
+    }
+    
+    # Static files
+    location /static/ {
+        alias /usr/share/nginx/html/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Error pages
+    error_page 404 /404.html;
+    error_page 500 502 503 504 /50x.html;
+    
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+} 

@@ -274,7 +274,7 @@ class TeacherResponse(TeacherBase):
     id: int = Field(description="Teacher unique identifier")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
-
+    
     @property
     def full_name(self) -> str:
         """Get teacher's full name."""
@@ -320,7 +320,7 @@ class TeacherWithSubjects(TeacherResponse):
         default=[],
         description="List of subjects this teacher can teach"
     )
-
+    
     class Config:
         from_attributes = True
         json_schema_extra = {
@@ -417,18 +417,18 @@ class TeacherBasic(BaseModel):
     code: str = Field(description="Teacher code")
     first_name: str = Field(description="Teacher's first name")
     last_name: str = Field(description="Teacher's last name")
-
+    
     @property
     def full_name(self) -> str:
         """Get teacher's full name."""
         return f"{self.first_name} {self.last_name}"
-
+    
     class Config:
         from_attributes = True
         json_schema_extra = {
             "example": {
                 "id": 1,
-                "code": "T001",
+                "code": "T001", 
                 "first_name": "Jean",
                 "last_name": "Dupont"
             }
