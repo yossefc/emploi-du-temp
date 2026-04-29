@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
 import { store } from './store';
 
-// Pages
+import LoginPage from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import SchedulePage from './pages/Schedule';
 import TeachersPage from './pages/Teachers';
@@ -15,16 +15,25 @@ import ClassesPage from './pages/Classes';
 import RoomsPage from './pages/Rooms';
 import ScheduleGenerationPage from './pages/ScheduleGeneration';
 import ImportDataPage from './pages/ImportData';
+import ProtectedRoute from './components/Common/ProtectedRoute';
 
-// Create a query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
   },
 });
+
+const Stub: React.FC<{ title: string }> = ({ title }) => (
+  <div className="flex items-center justify-center min-h-screen p-4">
+    <div className="text-center">
+      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+      <p className="text-gray-600 mt-2">À implémenter</p>
+    </div>
+  </div>
+);
 
 function App() {
   return (
@@ -33,42 +42,91 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <Router>
             <Routes>
-              {/* Routes directes sans authentification */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/teachers" element={<TeachersPage />} />
-              <Route path="/subjects" element={<SubjectsPage />} />
-              <Route path="/classes" element={<ClassesPage />} />
-              <Route path="/rooms" element={<RoomsPage />} />
-              <Route path="/schedule-generation" element={<ScheduleGenerationPage />} />
-              <Route path="/import" element={<ImportDataPage />} />
-              
+              <Route path="/login" element={<LoginPage />} />
+
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/schedule"
+                element={
+                  <ProtectedRoute>
+                    <SchedulePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teachers"
+                element={
+                  <ProtectedRoute>
+                    <TeachersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/subjects"
+                element={
+                  <ProtectedRoute>
+                    <SubjectsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/classes"
+                element={
+                  <ProtectedRoute>
+                    <ClassesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rooms"
+                element={
+                  <ProtectedRoute>
+                    <RoomsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/schedule-generation"
+                element={
+                  <ProtectedRoute>
+                    <ScheduleGenerationPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/import"
+                element={
+                  <ProtectedRoute>
+                    <ImportDataPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/constraints"
                 element={
-                  <div className="flex items-center justify-center min-h-screen">
-                    <div className="text-center">
-                      <h1 className="text-2xl font-bold text-gray-900">Page Contraintes</h1>
-                      <p className="text-gray-600 mt-2">À implémenter</p>
-                    </div>
-                  </div>
+                  <ProtectedRoute>
+                    <Stub title="Page Contraintes" />
+                  </ProtectedRoute>
                 }
               />
-              
               <Route
                 path="/settings"
                 element={
-                  <div className="flex items-center justify-center min-h-screen">
-                    <div className="text-center">
-                      <h1 className="text-2xl font-bold text-gray-900">Page Paramètres</h1>
-                      <p className="text-gray-600 mt-2">À implémenter</p>
-                    </div>
-                  </div>
+                  <ProtectedRoute>
+                    <Stub title="Page Paramètres" />
+                  </ProtectedRoute>
                 }
               />
-              
-              {/* Route par défaut - redirection vers dashboard */}
+
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>
           <Toaster position="top-right" />
@@ -79,4 +137,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

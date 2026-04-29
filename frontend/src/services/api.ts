@@ -82,10 +82,13 @@ class ApiService {
     return this.api.post('/auth/logout');
   }
 
+  async getCurrentUser() {
+    return this.api.get('/auth/me');
+  }
+
   // Teachers endpoints
   async getTeachers() {
-    // Temporarily use test endpoint without authentication
-    return this.api.get('/teachers-test');
+    return this.api.get('/teachers');
   }
 
   async getTeacher(id: number) {
@@ -93,8 +96,7 @@ class ApiService {
   }
 
   async createTeacher(teacherData: any) {
-    // Temporarily use test endpoint without authentication
-    return this.api.post('/teachers-test', teacherData);
+    return this.api.post('/teachers', teacherData);
   }
 
   async updateTeacher(id: number, teacherData: any) {

@@ -160,48 +160,35 @@ class StagingConfig(BaseConfig):
 
 
 class ProductionConfig(BaseConfig):
-    """Configuration pour l'environnement de production"""
-    
+    """Configuration pour l'environnement de production (compatible Render / Cloud Run)."""
+
     ENVIRONMENT: Environment = Environment.PRODUCTION
     DEBUG: bool = False
     LOG_LEVEL: str = "WARNING"
-    
-    # Base de données production (obligatoire)
-    DATABASE_URL: str = Field(..., env="PRODUCTION_DATABASE_URL")
+
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 30
-    
-    # Sécurité renforcée
-    SECRET_KEY: str = Field(..., env="PRODUCTION_SECRET_KEY")
-    JWT_SECRET_KEY: str = Field(..., env="PRODUCTION_JWT_SECRET_KEY")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # Plus court en prod
-    
-    # Rate limiting strict
+
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
     RATE_LIMIT_REQUESTS: int = 60
     RATE_LIMIT_WINDOW: int = 60
-    
-    # Features production
+
     FEATURE_MOBILE_PUSH: bool = True
     FEATURE_BACKUP_AUTO: bool = True
-    
-    # Pas de documentation publique en production
-    DOCS_URL: Optional[str] = None
-    REDOC_URL: Optional[str] = None
-    OPENAPI_URL: Optional[str] = None
-    
-    # CORS strict
-    CORS_ORIGINS: List[str] = Field(..., env="PRODUCTION_CORS_ORIGINS")
-    
-    # Logging en fichier obligatoire
-    LOG_FILE: str = Field(default="/var/log/school-timetable/app.log")
-    
-    # Cache Redis obligatoire
-    REDIS_URL: str = Field(..., env="PRODUCTION_REDIS_URL")
-    
-    # Email obligatoire pour les notifications
-    SMTP_HOST: str = Field(..., env="PRODUCTION_SMTP_HOST")
-    SMTP_USERNAME: str = Field(..., env="PRODUCTION_SMTP_USERNAME")
-    SMTP_PASSWORD: str = Field(..., env="PRODUCTION_SMTP_PASSWORD")
+
+    # Docs accessibles tant que le projet est jeune ; passer à None plus tard
+    DOCS_URL: Optional[str] = "/docs"
+    REDOC_URL: Optional[str] = "/redoc"
+    OPENAPI_URL: Optional[str] = "/openapi.json"
+
+    LOG_FILE: Optional[str] = None
+
+    @validator("CORS_ORIGINS", pre=True)
+    def split_cors(cls, v):
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
 
 def get_config() -> BaseConfig:

@@ -15,12 +15,9 @@ from app.models.class_group import ClassGroup
 from app.models.subject import Subject
 from app.models.teacher import Teacher
 from app.schemas.class_group import (
-    ClassGroup as ClassGroupSchema,
+    ClassGroupResponse as ClassGroupSchema,
     ClassGroupCreate,
-    ClassGroupUpdate,
-    ClassGroupBasic,
-    ClassGroupWithSubjects,
-    ClassSubjectAssignment
+    ClassGroupUpdate
 )
 from app.schemas.subject import SubjectBasic
 
@@ -31,7 +28,7 @@ router = APIRouter()
 # MAIN CRUD ENDPOINTS
 # ============================================================================
 
-@router.get("/", response_model=List[ClassGroupWithSubjects])
+@router.get("/", response_model=List[ClassGroupSchema])
 async def get_class_groups(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
@@ -64,14 +61,14 @@ async def get_class_groups(
     # Apply filters
     if search:
         search_filter = or_(
-            ClassGroup.nom.ilike(f"%{search}%"),
+            ClassGroup.name.ilike(f"%{search}%"),
             ClassGroup.code.ilike(f"%{search}%"),
             ClassGroup.name.ilike(f"%{search}%")  # Legacy field
         )
         query = query.filter(search_filter)
     
     if niveau:
-        query = query.filter(ClassGroup.niveau.ilike(f"%{niveau}%"))
+        query = query.filter(ClassGroup.grade_name.ilike(f"%{niveau}%"))
     
     if class_type:
         query = query.filter(ClassGroup.class_type == class_type)
@@ -80,16 +77,16 @@ async def get_class_groups(
         query = query.filter(ClassGroup.is_active == is_active)
     
     if min_effectif is not None:
-        query = query.filter(ClassGroup.effectif >= min_effectif)
+        query = query.filter(ClassGroup.student_count >= min_effectif)
     
     if max_effectif is not None:
-        query = query.filter(ClassGroup.effectif <= max_effectif)
+        query = query.filter(ClassGroup.student_count <= max_effectif)
     
     if academic_year:
         query = query.filter(ClassGroup.academic_year == academic_year)
     
     # Order by level and name
-    query = query.order_by(ClassGroup.niveau, ClassGroup.nom)
+    query = query.order_by(ClassGroup.grade_name, ClassGroup.name)
     
     # Apply pagination
     class_groups = query.offset(skip).limit(limit).all()
@@ -97,7 +94,7 @@ async def get_class_groups(
     return class_groups
 
 
-@router.get("/{class_group_id}", response_model=ClassGroupWithSubjects)
+@router.get("/{class_group_id}", response_model=ClassGroupSchema)
 async def get_class_group(
     class_group_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -192,10 +189,10 @@ async def update_class_group(
             setattr(class_group, field, value)
     
     # Update compatibility fields
-    if class_group_data.nom:
-        class_group.name = class_group_data.nom
-    if class_group_data.effectif:
-        class_group.student_count = class_group_data.effectif
+    if class_group_data.name:
+        class_group.name = class_group_data.name
+    if class_group_data.student_count:
+        class_group.student_count = class_group_data.student_count
     
     db.commit()
     db.refresh(class_group)
@@ -251,6 +248,12 @@ async def get_class_group_subjects(
     
     return class_group.matieres_obligatoires
 
+
+from pydantic import BaseModel
+from typing import List
+
+class ClassSubjectAssignment(BaseModel):
+    subject_ids: List[int]
 
 @router.post("/{class_group_id}/subjects", status_code=status.HTTP_201_CREATED)
 async def assign_subjects_to_class_group(
@@ -334,9 +337,9 @@ async def remove_subject_from_class_group(
 # SPECIALIZED ENDPOINTS
 # ============================================================================
 
-@router.get("/by-level/{niveau}", response_model=List[ClassGroupBasic])
+@router.get("/by-level/{niveau}", response_model=List[ClassGroupSchema])
 async def get_class_groups_by_level(
-    niveau: str,
+    grade_name: str,
     class_type: Optional[str] = Query(None, description="Filter by class type"),
     is_active: Optional[bool] = Query(True, description="Filter by active status"),
     current_user: User = Depends(get_current_active_user),
@@ -344,7 +347,7 @@ async def get_class_groups_by_level(
 ):
     """Get class groups by level with optional filters."""
     
-    query = db.query(ClassGroup).filter(ClassGroup.niveau.ilike(f"%{niveau}%"))
+    query = db.query(ClassGroup).filter(ClassGroup.grade_name.ilike(f"%{niveau}%"))
     
     if class_type:
         query = query.filter(ClassGroup.class_type == class_type)
@@ -352,7 +355,7 @@ async def get_class_groups_by_level(
     if is_active is not None:
         query = query.filter(ClassGroup.is_active == is_active)
     
-    class_groups = query.order_by(ClassGroup.nom).all()
+    class_groups = query.order_by(ClassGroup.name).all()
     
     return class_groups
 
@@ -376,16 +379,16 @@ async def get_class_groups_stats(
     
     # By level
     level_stats = db.query(
-        ClassGroup.niveau,
+        ClassGroup.grade_name,
         func.count(ClassGroup.id).label('count')
-    ).group_by(ClassGroup.niveau).all()
+    ).group_by(ClassGroup.grade_name).all()
     
     # Student statistics
     student_stats = db.query(
-        func.sum(ClassGroup.effectif).label('total_students'),
-        func.avg(ClassGroup.effectif).label('avg_class_size'),
-        func.min(ClassGroup.effectif).label('min_class_size'),
-        func.max(ClassGroup.effectif).label('max_class_size')
+        func.sum(ClassGroup.student_count).label('total_students'),
+        func.avg(ClassGroup.student_count).label('avg_class_size'),
+        func.min(ClassGroup.student_count).label('min_class_size'),
+        func.max(ClassGroup.student_count).label('max_class_size')
     ).first()
     
     # Classes with/without subjects
@@ -396,7 +399,7 @@ async def get_class_groups_stats(
         "total_classes": total_classes,
         "active_classes": active_classes,
         "by_type": {item.class_type: item.count for item in type_stats},
-        "by_level": {item.niveau: item.count for item in level_stats},
+        "by_level": {item.grade_name: item.count for item in level_stats},
         "student_statistics": {
             "total_students": student_stats.total_students or 0,
             "avg_class_size": round(float(student_stats.avg_class_size or 0), 1),
@@ -441,14 +444,14 @@ async def check_class_room_capacity_compatibility(
                 detail="Room not found"
             )
         
-        compatible = (room.capacite or room.capacity or 0) >= class_group.effectif
+        compatible = (room.capacity or room.capacity or 0) >= class_group.student_count
         return {
             "class_group_id": class_group_id,
-            "effectif": class_group.effectif,
+            "student_count": class_group.student_count,
             "room_id": room_id,
-            "room_capacity": room.capacite or room.capacity,
+            "room_capacity": room.capacity or room.capacity,
             "compatible": compatible,
-            "capacity_difference": (room.capacite or room.capacity or 0) - class_group.effectif
+            "capacity_difference": (room.capacity or room.capacity or 0) - class_group.student_count
         }
     else:
         # Find all compatible rooms
@@ -458,25 +461,25 @@ async def check_class_room_capacity_compatibility(
         )
         
         # Filter by capacity
-        if Room.capacite:
-            query = query.filter(Room.capacite >= class_group.effectif)
+        if Room.capacity:
+            query = query.filter(Room.capacity >= class_group.student_count)
         else:
-            query = query.filter(Room.capacity >= class_group.effectif)
+            query = query.filter(Room.capacity >= class_group.student_count)
         
         compatible_rooms = query.all()
         
         return {
             "class_group_id": class_group_id,
-            "effectif": class_group.effectif,
+            "student_count": class_group.student_count,
             "compatible_rooms_count": len(compatible_rooms),
             "compatible_rooms": [
                 {
                     "id": room.id,
                     "code": room.code,
-                    "nom": room.nom or room.name,
-                    "capacite": room.capacite or room.capacity,
+                    "name": room.name or room.name,
+                    "capacity": room.capacity or room.capacity,
                     "type_salle": room.type_salle or room.room_type,
-                    "capacity_margin": (room.capacite or room.capacity or 0) - class_group.effectif
+                    "capacity_margin": (room.capacity or room.capacity or 0) - class_group.student_count
                 }
                 for room in compatible_rooms
             ]

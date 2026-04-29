@@ -2,8 +2,16 @@
 Database models package.
 """
 
+# Ajouter en premier pour éviter les imports circulaires
+from app.models.associations import (
+    teacher_subjects,
+    class_mandatory_subjects,
+    class_preferred_rooms
+)
+
+# Puis importer les modèles
 from app.models.user import User, UserRole
-from app.models.teacher import Teacher, teacher_subjects
+from app.models.teacher import Teacher
 from app.models.subject import Subject, SubjectType, configure_subject_relationships
 from app.models.class_group import ClassGroup, Grade, ClassType
 from app.models.room import Room, RoomType
@@ -22,13 +30,17 @@ from app.models.schedule import Schedule, ScheduleEntry, ScheduleConflict
 configure_subject_relationships()
 
 __all__ = [
+    # Associations (tables d'association)
+    "teacher_subjects",
+    "class_mandatory_subjects", 
+    "class_preferred_rooms",
+    
     # User models
     "User",
     "UserRole",
     
     # Core models
     "Teacher",
-    "teacher_subjects",
     "Subject",
     "SubjectType",
     "ClassGroup",

@@ -1,0 +1,106 @@
+"""uniformize field names to english
+
+Revision ID: xxx
+Revises: previous_revision
+Create Date: 2024-01-xx
+
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers
+revision = 'uniformize_field_names'
+down_revision = 'previous_revision'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    # ClassGroup : uniformiser les noms en anglais
+    op.alter_column('class_groups', 'nom', new_column_name='name', 
+                    existing_type=sa.String(255), existing_nullable=False)
+    op.alter_column('class_groups', 'niveau', new_column_name='grade_name',
+                    existing_type=sa.String(50), existing_nullable=False)
+    op.alter_column('class_groups', 'effectif', new_column_name='student_count',
+                    existing_type=sa.Integer(), existing_nullable=False)
+    op.alter_column('class_groups', 'horaires_preferes', new_column_name='preferred_schedules',
+                    existing_type=postgresql.JSON(astext_type=sa.Text()))
+    
+    # Room : uniformiser capacite -> capacity
+    op.alter_column('rooms', 'capacite', new_column_name='capacity',
+                    existing_type=sa.Integer(), existing_nullable=False)
+    
+    # Ajouter les indexes manquants pour les performances
+    op.create_index('idx_teacher_availability_lookup', 'teacher_availabilities', 
+                    ['teacher_id', 'day_of_week', 'is_available'])
+    op.create_index('idx_schedule_entries_lookup', 'schedule_entries',
+                    ['schedule_id', 'day_of_week', 'period'])
+    op.create_index('idx_class_subject_req', 'class_subject_requirements',
+                    ['class_id', 'subject_id'])
+    op.create_index('idx_teacher_subjects', 'teacher_subjects',
+                    ['teacher_id', 'subject_id'])
+    
+    # Ajouter des contraintes CHECK manquantes
+    op.create_check_constraint(
+        'ck_teacher_availability_time_valid',
+        'teacher_availabilities',
+        'start_time < end_time'
+    )
+    
+    op.create_check_constraint(
+        'ck_room_unavailability_time_valid',
+        'room_unavailabilities',
+        'start_time < end_time'
+    )
+    
+    op.create_check_constraint(
+        'ck_class_group_student_count',
+        'class_groups',
+        'student_count > 0 AND student_count <= 50'
+    )
+    
+    op.create_check_constraint(
+        'ck_room_capacity',
+        'rooms',
+        'capacity > 0 AND capacity <= 200'
+    )
+    
+    # Ajouter colonnes d'audit manquantes
+    op.add_column('schedules', 
+        sa.Column('created_by_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True))
+    op.add_column('schedules',
+        sa.Column('updated_by_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True))
+    
+    op.add_column('schedule_entries',
+        sa.Column('last_modified_at', sa.DateTime(timezone=True), nullable=True))
+    op.add_column('schedule_entries',
+        sa.Column('modified_by_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=True))
+
+
+def downgrade():
+    # Retour aux noms français
+    op.alter_column('class_groups', 'name', new_column_name='nom')
+    op.alter_column('class_groups', 'grade_name', new_column_name='niveau')
+    op.alter_column('class_groups', 'student_count', new_column_name='effectif')
+    op.alter_column('class_groups', 'preferred_schedules', new_column_name='horaires_preferes')
+    
+    op.alter_column('rooms', 'capacity', new_column_name='capacite')
+    
+    # Supprimer les indexes
+    op.drop_index('idx_teacher_availability_lookup')
+    op.drop_index('idx_schedule_entries_lookup')
+    op.drop_index('idx_class_subject_req')
+    op.drop_index('idx_teacher_subjects')
+    
+    # Supprimer les contraintes
+    op.drop_constraint('ck_teacher_availability_time_valid', 'teacher_availabilities')
+    op.drop_constraint('ck_room_unavailability_time_valid', 'room_unavailabilities')
+    op.drop_constraint('ck_class_group_student_count', 'class_groups')
+    op.drop_constraint('ck_room_capacity', 'rooms')
+    
+    # Supprimer colonnes d'audit
+    op.drop_column('schedules', 'created_by_id')
+    op.drop_column('schedules', 'updated_by_id')
+    op.drop_column('schedule_entries', 'last_modified_at')
+    op.drop_column('schedule_entries', 'modified_by_id')

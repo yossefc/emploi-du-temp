@@ -128,6 +128,15 @@ export default function DataTable<T extends Record<string, any>>({
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Load saved state on mount
   useEffect(() => {
@@ -392,10 +401,66 @@ export default function DataTable<T extends Record<string, any>>({
         </div>
       )}
 
-      {/* Table Container */}
-      <div 
+      {/* Mobile card view */}
+      {isMobile && (
+        <div className="divide-y divide-gray-200">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={`skeleton-card-${i}`} className="p-4 space-y-2">
+                <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
+                <div className="h-3 bg-gray-100 rounded animate-pulse w-1/2" />
+              </div>
+            ))
+          ) : tableData.length === 0 ? (
+            <div className="px-4 py-12 text-center text-gray-500">
+              <FunnelIcon className="w-10 h-10 text-gray-300 mb-3 mx-auto" />
+              <p className="text-base font-medium">Aucune donnée trouvée</p>
+              <p className="text-sm">Ajustez vos filtres ou ajoutez des données</p>
+            </div>
+          ) : (
+            tableData.map((record, index) => (
+              <div
+                key={getRowKey(record, index)}
+                className={`p-4 ${isRowSelected(record, index) ? 'bg-indigo-50' : ''}`}
+                {...(onRow ? onRow(record, index) : {})}
+              >
+                {rowSelection && (
+                  <div className="mb-2">
+                    <label className="inline-flex items-center text-sm text-gray-600">
+                      <input
+                        type={rowSelection.type}
+                        checked={isRowSelected(record, index)}
+                        onChange={(e) => handleRowSelect(record, e.target.checked)}
+                        className="h-4 w-4 mr-2 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      Sélectionner
+                    </label>
+                  </div>
+                )}
+                <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5">
+                  {visibleColumns.map((column) => (
+                    <React.Fragment key={column.key}>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide pt-0.5">
+                        {column.title}
+                      </dt>
+                      <dd className="text-sm text-gray-900 break-words min-w-0">
+                        {column.render
+                          ? column.render(record[column.dataIndex], record, index)
+                          : (record[column.dataIndex] as React.ReactNode) ?? '—'}
+                      </dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Table Container (desktop) */}
+      <div
         ref={tableRef}
-        className="overflow-auto"
+        className={`overflow-auto ${isMobile ? 'hidden' : ''}`}
         style={{ maxHeight: scroll?.y }}
       >
         <table className="min-w-full divide-y divide-gray-200">

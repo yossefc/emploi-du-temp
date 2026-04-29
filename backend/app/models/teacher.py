@@ -2,20 +2,13 @@
 Teacher model for managing teaching staff.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, Date, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Text
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 import re
 
 from app.db.base import Base
-
-# Association table for many-to-many relationship between teachers and subjects
-teacher_subjects = Table(
-    'teacher_subjects',
-    Base.metadata,
-    Column('teacher_id', Integer, ForeignKey('teachers.id')),
-    Column('subject_id', Integer, ForeignKey('subjects.id'))
-)
+from app.models.associations import teacher_subjects
 
 
 class Teacher(Base):

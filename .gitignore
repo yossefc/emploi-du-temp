@@ -1,0 +1,49 @@
+# Secrets
+.env
+.env.local
+.env.backup
+.env.new
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node / Vite
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Logs / DB locales
+*.log
+*.sqlite
+*.sqlite3
+*.db
+backend/school_timetable*.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads & exports temporaires
+backend/uploads/
+backend/exports/
+backend/logs/
+
+# Firebase
+.firebase/
+firebase-debug.log
+.firebaserc.local

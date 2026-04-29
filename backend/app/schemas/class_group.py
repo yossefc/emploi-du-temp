@@ -1,89 +1,77 @@
-"""
-Class group schemas for API validation.
-"""
 
-from typing import List, Optional, Dict, Any
+# backend/app/schemas/class_group.py
+
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
 
-class Grade(str, Enum):
-    """Grade levels enumeration."""
-    GRADE_6 = "6"
-    GRADE_7 = "7"
-    GRADE_8 = "8"
-    GRADE_9 = "9"
-    GRADE_10 = "10"
-    GRADE_11 = "11"
-    GRADE_12 = "12"
-
-
 class ClassType(str, Enum):
-    """Class type enumeration."""
+    """Types de classes."""
     REGULAR = "regular"
     ADVANCED = "advanced"
     SPECIAL_NEEDS = "special_needs"
 
 
 class ClassGroupBase(BaseModel):
-    """Base class group schema with enhanced fields."""
-    code: str = Field(..., min_length=1, max_length=20, description="Unique class code")
-    nom: str = Field(..., min_length=1, max_length=255, description="Class name")
-    niveau: str = Field(..., min_length=1, max_length=50, description="Class level (e.g., '6ème', '5ème')")
-    effectif: int = Field(..., ge=1, le=50, description="Number of students")
+    """Schema de base pour les classes."""
+    code: str = Field(..., min_length=1, max_length=20, description="Code unique de la classe")
+    name: str = Field(..., min_length=1, max_length=255, description="Nom de la classe")  # Ancien: nom
+    grade_name: str = Field(..., min_length=1, max_length=50, description="Niveau scolaire")  # Ancien: niveau
+    student_count: int = Field(..., ge=1, le=50, description="Nombre d'élèves")  # Ancien: effectif
+    class_type: ClassType = Field(default=ClassType.REGULAR, description="Type de classe")
+    description: Optional[str] = Field(None, max_length=500, description="Description")
+    academic_year: Optional[str] = Field(None, max_length=20, description="Année scolaire")
+    preferred_schedules: Optional[Dict[str, Any]] = Field(None, description="Préférences horaires")  # Ancien: horaires_preferes
+    is_boys_only: bool = Field(default=False, description="Classe garçons uniquement")
+    is_girls_only: bool = Field(default=False, description="Classe filles uniquement")
+    is_mixed: bool = Field(default=True, description="Classe mixte")
+    primary_language: str = Field(default="he", pattern="^(he|fr)$", description="Langue principale")
+    homeroom_teacher_id: Optional[int] = Field(None, description="ID du professeur principal")
+    is_active: bool = Field(default=True, description="Statut actif")
     
-    # Optional fields
-    class_type: ClassType = ClassType.REGULAR
-    description: Optional[str] = Field(None, description="Class description")
-    academic_year: Optional[str] = Field(None, max_length=20, description="Academic year (e.g., '2024-2025')")
-    
-    # Schedule preferences (JSON structure)
-    horaires_preferes: Optional[Dict[str, Any]] = Field(None, description="Preferred schedule slots")
-    
-    # Legacy compatibility fields
-    name: Optional[str] = Field(None, description="Legacy name field")
-    grade: Optional[Grade] = Field(None, description="Legacy grade field")
-    student_count: Optional[int] = Field(None, ge=1, le=50, description="Legacy student count")
-    
-    # Settings
-    is_boys_only: bool = False
-    is_girls_only: bool = False
-    is_mixed: bool = True
-    primary_language: str = Field(default="he", pattern="^(he|fr)$")
-    homeroom_teacher_id: Optional[int] = None
-    is_active: bool = True
-
     @validator('code')
     def validate_code(cls, v):
-        """Validate class code format."""
-        if not v or not v.strip():
-            raise ValueError('Class code cannot be empty')
+        if not v.strip():
+            raise ValueError('Le code de classe ne peut pas être vide')
         return v.strip().upper()
     
-    @validator('effectif', 'student_count')
+    @validator('is_mixed')
+    def validate_gender_settings(cls, v, values):
+        """Valide la cohérence des paramètres de genre."""
+        is_boys = values.get('is_boys_only', False)
+        is_girls = values.get('is_girls_only', False)
+        
+        if is_boys and is_girls:
+            raise ValueError('Une classe ne peut pas être à la fois garçons et filles uniquement')
+        
+        if (is_boys or is_girls) and v:
+            raise ValueError('Une classe non-mixte ne peut pas être marquée comme mixte')
+        
+        return v
+    
+    @validator('student_count')
     def validate_student_count(cls, v):
-        """Validate student count is reasonable."""
-        if v is not None and (v < 1 or v > 50):
-            raise ValueError('Student count must be between 1 and 50')
+        if v < 1 or v > 50:
+            raise ValueError('Le nombre d\'élèves doit être entre 1 et 50')
         return v
 
 
 class ClassGroupCreate(ClassGroupBase):
-    """Schema for class group creation."""
-    # Subject IDs to assign as mandatory subjects
-    subject_ids: Optional[List[int]] = Field(None, description="List of mandatory subject IDs")
+    """Schema pour la création de classe."""
+    subject_ids: Optional[List[int]] = Field(None, description="IDs des matières obligatoires")
 
 
 class ClassGroupUpdate(BaseModel):
-    """Schema for class group update."""
+    """Schema pour la mise à jour de classe."""
     code: Optional[str] = Field(None, min_length=1, max_length=20)
-    nom: Optional[str] = Field(None, min_length=1, max_length=255)
-    niveau: Optional[str] = Field(None, min_length=1, max_length=50)
-    effectif: Optional[int] = Field(None, ge=1, le=50)
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    grade_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    student_count: Optional[int] = Field(None, ge=1, le=50)
     class_type: Optional[ClassType] = None
     description: Optional[str] = None
     academic_year: Optional[str] = Field(None, max_length=20)
-    horaires_preferes: Optional[Dict[str, Any]] = None
+    preferred_schedules: Optional[Dict[str, Any]] = None
     is_boys_only: Optional[bool] = None
     is_girls_only: Optional[bool] = None
     is_mixed: Optional[bool] = None
@@ -91,102 +79,21 @@ class ClassGroupUpdate(BaseModel):
     homeroom_teacher_id: Optional[int] = None
     is_active: Optional[bool] = None
 
-    @validator('code')
-    def validate_code(cls, v):
-        if v is not None:
-            if not v.strip():
-                raise ValueError('Class code cannot be empty')
-            return v.strip().upper()
-        return v
 
-
-class ClassGroupInDB(ClassGroupBase):
-    """Schema for class group in database."""
+class ClassGroupResponse(ClassGroupBase):
+    """Schema de réponse pour une classe."""
     id: int
-    
-    class Config:
-        from_attributes = True
-
-
-class ClassGroupWithSubjects(ClassGroupInDB):
-    """Class group schema with assigned subjects."""
-    matieres_obligatoires: List['SubjectBasic'] = []
     homeroom_teacher: Optional['TeacherBasic'] = None
+    mandatory_subjects: List['SubjectBasic'] = []
+    total_required_hours: int = Field(description="Total d'heures requises par semaine")
     
     class Config:
         from_attributes = True
 
 
-class ClassGroup(ClassGroupInDB):
-    """Schema for class group response."""
-    pass
-
-
-class ClassGroupBasic(BaseModel):
-    """Basic class group info for nested responses."""
-    id: int
-    code: str
-    nom: str
-    niveau: str
-    effectif: int
-    class_type: ClassType
-    
-    class Config:
-        from_attributes = True
-
-
-class ClassSubjectAssignment(BaseModel):
-    """Schema for assigning subjects to a class."""
-    subject_ids: List[int] = Field(..., min_items=1, description="List of subject IDs to assign")
-    
-    @validator('subject_ids')
-    def validate_subject_ids(cls, v):
-        if not v:
-            raise ValueError('At least one subject ID must be provided')
-        if len(set(v)) != len(v):
-            raise ValueError('Duplicate subject IDs are not allowed')
-        return v
-
-
-# Legacy schemas for compatibility
-class ClassSubjectRequirementBase(BaseModel):
-    """Base schema for class subject requirements."""
-    class_id: int
-    subject_id: int
-    hours_per_week: int = Field(..., ge=1, le=10)
-    preferred_teacher_id: Optional[int] = None
-    requires_double_period: bool = False
-    max_per_day: int = Field(default=2, ge=1, le=4)
-    min_days_between: int = Field(default=0, ge=0, le=3)
-
-
-class ClassSubjectRequirementCreate(ClassSubjectRequirementBase):
-    """Schema for creating class subject requirement."""
-    pass
-
-
-class ClassSubjectRequirementUpdate(BaseModel):
-    """Schema for updating class subject requirement."""
-    hours_per_week: Optional[int] = Field(None, ge=1, le=10)
-    preferred_teacher_id: Optional[int] = None
-    requires_double_period: Optional[bool] = None
-    max_per_day: Optional[int] = Field(None, ge=1, le=4)
-    min_days_between: Optional[int] = Field(None, ge=0, le=3)
-
-
-class ClassSubjectRequirement(ClassSubjectRequirementBase):
-    """Schema for class subject requirement response."""
-    id: int
-    subject: "SubjectBasic"
-    preferred_teacher: Optional["TeacherBasic"] = None
-    
-    class Config:
-        from_attributes = True
-
-
-# Import at the end to avoid circular imports
-from app.schemas.subject import SubjectBasic
+# Import des schemas liés pour éviter les références circulaires
 from app.schemas.teacher import TeacherBasic
+from app.schemas.subject import SubjectBasic
 
-ClassSubjectRequirement.model_rebuild()
-ClassGroupWithSubjects.model_rebuild() 
+# Reconstruction des modèles pour gérer les références forward
+ClassGroupResponse.model_rebuild()

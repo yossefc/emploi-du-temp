@@ -47,7 +47,7 @@ class Subject(Base):
     
     # Relationships will be set after import to avoid circular imports
     class_requirements = relationship("ClassSubjectRequirement", back_populates="subject")
-    class_groups = relationship("ClassGroup", secondary="class_group_subjects", back_populates="subjects")
+    mandatory_for_classes = relationship("ClassGroup", secondary="class_mandatory_subjects", back_populates="mandatory_subjects")
     
     # Validations
     @validates('code')
@@ -113,5 +113,5 @@ class Subject(Base):
 # Configure relationship after class definition to avoid circular imports
 def configure_subject_relationships():
     """Configure Subject relationships after all models are loaded."""
-    from app.models.teacher import teacher_subjects
+    from app.models.associations import teacher_subjects
     Subject.teachers = relationship("Teacher", secondary=teacher_subjects, back_populates="subjects") 

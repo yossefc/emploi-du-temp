@@ -64,7 +64,7 @@ async def get_rooms(
     # Apply search filter
     if search:
         search_filter = or_(
-            Room.nom.ilike(f"%{search}%"),
+            Room.name.ilike(f"%{search}%"),
             Room.code.ilike(f"%{search}%"),
             Room.name.ilike(f"%{search}%")  # Legacy field
         )
@@ -79,12 +79,12 @@ async def get_rooms(
     # Apply capacity filters
     if min_capacite is not None:
         query = query.filter(
-            or_(Room.capacite >= min_capacite, Room.capacity >= min_capacite)
+            or_(Room.capacity >= min_capacite, Room.capacity >= min_capacite)
         )
     
     if max_capacite is not None:
         query = query.filter(
-            or_(Room.capacite <= max_capacite, Room.capacity <= max_capacite)
+            or_(Room.capacity <= max_capacite, Room.capacity <= max_capacite)
         )
     
     # Apply location filters
@@ -115,7 +115,7 @@ async def get_rooms(
         query = query.filter(Room.is_bookable == is_bookable)
     
     # Order by building, floor, and name
-    query = query.order_by(Room.building, Room.floor, Room.nom)
+    query = query.order_by(Room.building, Room.floor, Room.name)
     
     # Apply pagination
     rooms = query.offset(skip).limit(limit).all()
@@ -206,10 +206,10 @@ async def update_room(
             setattr(room, field, value)
     
     # Update compatibility fields
-    if room_data.nom:
-        room.name = room_data.nom
-    if room_data.capacite:
-        room.capacity = room_data.capacite
+    if room_data.name:
+        room.name = room_data.name
+    if room_data.capacity:
+        room.capacity = room_data.capacity
     if room_data.type_salle:
         room.room_type = room_data.type_salle
     
@@ -279,7 +279,7 @@ async def get_available_rooms(
     # Apply capacity filter
     if min_capacity:
         query = query.filter(
-            or_(Room.capacite >= min_capacity, Room.capacity >= min_capacity)
+            or_(Room.capacity >= min_capacity, Room.capacity >= min_capacity)
         )
     
     # Apply room type filter
@@ -302,7 +302,7 @@ async def get_available_rooms(
     # TODO: Add availability check against schedules/bookings
     # This would involve checking the room's actual bookings for the time slot
     
-    available_rooms = query.order_by(Room.building, Room.floor, Room.nom).all()
+    available_rooms = query.order_by(Room.building, Room.floor, Room.name).all()
     
     return available_rooms
 
@@ -319,7 +319,7 @@ async def get_rooms_by_capacity(
     """Get rooms with minimum capacity and optional filters."""
     
     query = db.query(Room).filter(
-        or_(Room.capacite >= min_capacity, Room.capacity >= min_capacity)
+        or_(Room.capacity >= min_capacity, Room.capacity >= min_capacity)
     )
     
     if room_type:
@@ -334,9 +334,9 @@ async def get_rooms_by_capacity(
         query = query.filter(Room.is_active == is_active)
     
     rooms = query.order_by(
-        (Room.capacite or Room.capacity).desc(),
+        (Room.capacity or Room.capacity).desc(),
         Room.building,
-        Room.nom
+        Room.name
     ).all()
     
     return rooms
@@ -449,10 +449,10 @@ async def validate_rooms_for_subject(
     # Apply capacity filter if provided
     if class_effectif:
         query = query.filter(
-            or_(Room.capacite >= class_effectif, Room.capacity >= class_effectif)
+            or_(Room.capacity >= class_effectif, Room.capacity >= class_effectif)
         )
     
-    suitable_rooms = query.order_by(Room.building, Room.floor, Room.nom).all()
+    suitable_rooms = query.order_by(Room.building, Room.floor, Room.name).all()
     
     # Get all rooms for comparison
     all_rooms = db.query(Room).filter(Room.is_active == True).count()
@@ -469,8 +469,8 @@ async def validate_rooms_for_subject(
             {
                 "id": room.id,
                 "code": room.code,
-                "nom": room.nom or room.name,
-                "capacite": room.capacite or room.capacity,
+                "name": room.name or room.name,
+                "capacity": room.capacity or room.capacity,
                 "type_salle": room.type_salle or room.room_type,
                 "building": room.building,
                 "floor": room.floor,
@@ -507,9 +507,9 @@ async def suggest_room_optimization(
     
     # Capacity analysis
     capacity_stats = db.query(
-        func.min(Room.capacite).label('min_capacity'),
-        func.max(Room.capacite).label('max_capacity'),
-        func.avg(Room.capacite).label('avg_capacity')
+        func.min(Room.capacity).label('min_capacity'),
+        func.max(Room.capacity).label('max_capacity'),
+        func.avg(Room.capacity).label('avg_capacity')
     ).filter(Room.is_active == True).first()
     
     # Equipment analysis
@@ -596,10 +596,10 @@ async def get_rooms_stats(
     
     # Capacity statistics
     capacity_stats = db.query(
-        func.min(Room.capacite).label('min_capacity'),
-        func.max(Room.capacite).label('max_capacity'),
-        func.avg(Room.capacite).label('avg_capacity'),
-        func.sum(Room.capacite).label('total_capacity')
+        func.min(Room.capacity).label('min_capacity'),
+        func.max(Room.capacity).label('max_capacity'),
+        func.avg(Room.capacity).label('avg_capacity'),
+        func.sum(Room.capacity).label('total_capacity')
     ).first()
     
     # Equipment statistics

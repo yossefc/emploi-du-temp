@@ -59,39 +59,42 @@ const SchedulePage: React.FC = () => {
   return (
     <Layout>
       <div className="flex-1 relative">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">
             Emploi du temps
           </h1>
-          
-          <div className="flex gap-2">
+
+          <div className="flex flex-wrap gap-2">
             {currentSchedule && (
               <>
                 <button
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center px-3 sm:px-4 min-h-[44px] border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('excel')}
+                  aria-label="Exporter en Excel"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-                  Excel
+                  <ArrowDownTrayIcon className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Excel</span>
                 </button>
                 <button
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center px-3 sm:px-4 min-h-[44px] border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('pdf')}
+                  aria-label="Exporter en PDF"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-                  PDF
+                  <ArrowDownTrayIcon className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">PDF</span>
                 </button>
                 <button
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center px-3 sm:px-4 min-h-[44px] border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   onClick={() => handleExport('ics')}
+                  aria-label="Exporter au format calendrier"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-                  Calendrier
+                  <ArrowDownTrayIcon className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Calendrier</span>
                 </button>
               </>
             )}
             <button
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center justify-center flex-1 sm:flex-none px-4 min-h-[44px] border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               onClick={() => setOpenGenerate(true)}
             >
               <PlusIcon className="w-4 h-4 mr-2" />

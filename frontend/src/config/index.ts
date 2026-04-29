@@ -2,8 +2,12 @@
  * Configuration globale de l'application
  */
 
-// Récupération des variables d'environnement
+// Récupération des variables d'environnement (Vite expose import.meta.env.VITE_*)
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
+  const viteEnv = (import.meta as any).env || {};
+  if (viteEnv[key] !== undefined && viteEnv[key] !== '') {
+    return String(viteEnv[key]);
+  }
   if (typeof window !== 'undefined' && (window as any).__ENV__) {
     return (window as any).__ENV__[key] || defaultValue;
   }

@@ -39,10 +39,15 @@ export const login = createAsyncThunk<
     try {
       const response = await api.login(email, password);
       localStorage.setItem('access_token', response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
-      return response.data.user;
+      if (response.data.refresh_token) {
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+      }
+      const me = await api.getCurrentUser();
+      return me.data as User;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      return rejectWithValue(
+        error.response?.data?.detail || error.response?.data?.message || 'Login failed'
+      );
     }
   }
 );
@@ -52,14 +57,15 @@ export const logout = createAsyncThunk<
   void, // no arg
   { rejectValue: string }
 >(
-  'auth/logout', 
+  'auth/logout',
   async (_, { rejectWithValue }) => {
     try {
       await api.logout();
+    } catch (error: any) {
+      // Ignore network errors on logout — we still want to clear local state.
+    } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Logout failed');
     }
   }
 );
@@ -72,10 +78,14 @@ export const register = createAsyncThunk<
   'auth/register',
   async (userData, { rejectWithValue }) => {
     try {
-      const response = await api.register(userData);
-      localStorage.setItem('access_token', response.data.access_token);
-      localStorage.setItem('refresh_token', response.data.refresh_token);
-      return response.data.user;
+      await api.register(userData);
+      const loginResp = await api.login(userData.email, userData.password);
+      localStorage.setItem('access_token', loginResp.data.access_token);
+      if (loginResp.data.refresh_token) {
+        localStorage.setItem('refresh_token', loginResp.data.refresh_token);
+      }
+      const me = await api.getCurrentUser();
+      return me.data as User;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Registration failed');
     }

@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: emploi-du-temp-backend
+    runtime: docker
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: emploi-du-temp-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: emploi-du-temp-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORT
+        value: 8000
+    dockerCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+
+  - type: redis
+    name: emploi-du-temp-redis
+    region: frankfurt
+    plan: free
+    ipAllowList: []
+
+databases:
+  - name: emploi-du-temp-db
+    region: frankfurt
+    plan: free
+    databaseName: emploi_du_temp
+    user: emploi_du_temp

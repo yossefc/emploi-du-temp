@@ -296,7 +296,7 @@ const ImportDataPage: React.FC = () => {
                     {result.import.slice(0, 5).map((item, index) => (
                       <div key={index} className="p-3 border-b border-gray-100 last:border-b-0">
                         <div className="text-sm font-medium text-gray-900">
-                          {item.json.prenom} {item.json.nom}
+                          {item.json.prenom} {item.json.name}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
                           {item.json.matiere} - {item.json.classes[0].promotion} - {item.json.heures_par_semaine}h/semaine

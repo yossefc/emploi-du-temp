@@ -1,17 +1,15 @@
-"""
-ClassGroup model for managing student classes.
-"""
+# backend/app/models/class_group.py
 
-from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON, Text, ForeignKey, Table, DateTime
-from sqlalchemy.orm import relationship, validates
-from sqlalchemy.sql import func
-import enum
-
+from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON, ForeignKey
+from sqlalchemy.orm import relationship
 from app.db.base import Base
+from enum import Enum as PyEnum
+from typing import Optional
+from app.models.associations import class_mandatory_subjects
 
 
-class Grade(str, enum.Enum):
-    """Grade levels enumeration."""
+class Grade(str, PyEnum):
+    """Niveaux scolaires."""
     GRADE_6 = "6"
     GRADE_7 = "7"
     GRADE_8 = "8"
@@ -21,100 +19,80 @@ class Grade(str, enum.Enum):
     GRADE_12 = "12"
 
 
-class ClassType(str, enum.Enum):
-    """Class type enumeration."""
+class ClassType(str, PyEnum):
+    """Types de classes."""
     REGULAR = "regular"
     ADVANCED = "advanced"
     SPECIAL_NEEDS = "special_needs"
 
 
-# Association table for many-to-many relationship between ClassGroup and Subject
-class_group_subjects = Table(
-    'class_group_subjects',
-    Base.metadata,
-    Column('class_group_id', Integer, ForeignKey('class_groups.id'), primary_key=True),
-    Column('subject_id', Integer, ForeignKey('subjects.id'), primary_key=True)
-)
-
-
 class ClassGroup(Base):
-    """ClassGroup model with enhanced functionality."""
+    """Modèle pour les groupes/classes."""
     __tablename__ = "class_groups"
     
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String(20), unique=True, index=True, nullable=False)  # e.g., "9A", "10B"
+    code = Column(String(20), unique=True, nullable=False, index=True)
     
-    # Basic information - unified English names
-    name = Column(String(255), nullable=False)  # Class name
-    grade_level = Column(String(50), nullable=False)  # Level (e.g., "6ème", "5ème")
-    student_count = Column(Integer, nullable=False)  # Number of students
+    # Champs renommés en anglais
+    name = Column(String(255), nullable=False)  # Ancien: nom
+    grade_name = Column(String(50), nullable=False)  # Ancien: niveau
+    student_count = Column(Integer, nullable=False)  # Ancien: effectif
     
+    # Type et description
     class_type = Column(Enum(ClassType), default=ClassType.REGULAR)
+    description = Column(String(500))
+    academic_year = Column(String(20))
     
-    # Schedule preferences (JSON format)
-    schedule_preferences = Column(JSON, nullable=True)  # Preferred schedule slots
+    # Préférences horaires (JSON)
+    preferred_schedules = Column(JSON)  # Ancien: horaires_preferes
     
-    # Additional metadata
-    description = Column(Text, nullable=True)
-    academic_year = Column(String(20), nullable=True)  # e.g., "2024-2025"
-    
-    # Israeli-specific settings
+    # Paramètres de genre
     is_boys_only = Column(Boolean, default=False)
     is_girls_only = Column(Boolean, default=False)
     is_mixed = Column(Boolean, default=True)
-    primary_language = Column(String(2), default="he")  # 'he' or 'fr'
     
-    # Homeroom teacher
-    homeroom_teacher_id = Column(Integer, ForeignKey('teachers.id'), nullable=True)
+    # Langue principale
+    primary_language = Column(String(2), default="he")  # he ou fr
     
-    # Status and timestamps
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # Relations
+    homeroom_teacher_id = Column(Integer, ForeignKey("teachers.id"))
+    homeroom_teacher = relationship("Teacher", back_populates="homeroom_classes")
     
-    # Relationships
-    subjects = relationship(
-        "Subject", 
-        secondary=class_group_subjects, 
-        back_populates="class_groups",
-        lazy="select"
+    # Matières obligatoires
+    mandatory_subjects = relationship(
+        "Subject",
+        secondary=class_mandatory_subjects,
+        back_populates="mandatory_for_classes"
     )
     
-    homeroom_teacher = relationship("Teacher", foreign_keys=[homeroom_teacher_id], overlaps="homeroom_classes")
-    subject_requirements = relationship("ClassSubjectRequirement", back_populates="class_group", cascade="all, delete-orphan")
-    schedule_entries = relationship("ScheduleEntry", back_populates="class_group")
+    # Requirements
+    subject_requirements = relationship(
+        "ClassSubjectRequirement", 
+        back_populates="class_group",
+        cascade="all, delete-orphan"
+    )
     
-    # Validations
-    @validates('student_count')
-    def validate_student_count(self, key, value):
-        if value is not None and value < 0:
-            raise ValueError("Student count cannot be negative")
-        return value
+    # Entrées d'emploi du temps
+    schedule_entries = relationship(
+        "ScheduleEntry", 
+        back_populates="class_group"
+    )
     
-    @validates('code')
-    def validate_code(self, key, value):
-        if not value or len(value.strip()) == 0:
-            raise ValueError("Class code cannot be empty")
-        return value.strip().upper()
-    
-    # Properties
-    @property
-    def display_name(self):
-        """Get formatted display name."""
-        return f"{self.code} - {self.name}"
+    # Actif/Inactif
+    is_active = Column(Boolean, default=True)
     
     @property
-    def is_gender_separated(self):
-        """Check if class is gender separated."""
-        return self.is_boys_only or self.is_girls_only
-    
-    @property
-    def grade_numeric(self):
-        """Get numeric grade level."""
+    def grade_enum(self) -> Optional[Grade]:
+        """Retourne le niveau comme enum."""
         try:
-            return int(self.grade_level)
-        except (ValueError, TypeError):
+            return Grade(self.grade_name)
+        except ValueError:
             return None
     
+    @property
+    def total_required_hours(self) -> int:
+        """Calcule le total d'heures requises par semaine."""
+        return sum(req.hours_per_week for req in self.subject_requirements)
+    
     def __repr__(self):
-        return f"<ClassGroup(id={self.id}, code='{self.code}', name='{self.name}', students={self.student_count})>" 
+        return f"<ClassGroup {self.code}: {self.name} ({self.student_count} students)>"
