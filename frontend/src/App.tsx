@@ -4,10 +4,15 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "react-hot-toast";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { SchoolProvider } from "@/components/layout/SchoolContext";
 import Dashboard from "@/pages/Dashboard";
 import Wizard from "@/pages/Wizard";
 import Schedules from "@/pages/Schedules";
 import ScheduleDetail from "@/pages/ScheduleDetail";
+import Teachers from "@/pages/Teachers";
+import Subjects from "@/pages/Subjects";
+import Classes from "@/pages/Classes";
+import Rooms from "@/pages/Rooms";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,7 +24,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Placeholder pour les pages pas encore implémentées (5b.1, 5b.2, 6...)
 const Stub = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center min-h-[60vh]">
     <div className="text-center">
@@ -32,25 +36,27 @@ const Stub = ({ title }: { title: string }) => (
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<AppShell />}>
-            <Route index element={<Dashboard />} />
-            <Route path="wizard" element={<Wizard />} />
-            <Route path="schools" element={<Stub title="Schools (Phase 5b.2)" />} />
-            <Route path="grades" element={<Stub title="Grades (Phase 5b.2)" />} />
-            <Route path="classes" element={<Stub title="Classes (Phase 5b.2)" />} />
-            <Route path="subjects" element={<Stub title="Subjects (Phase 5b.2)" />} />
-            <Route path="teachers" element={<Stub title="Teachers (Phase 5b.2)" />} />
-            <Route path="rooms" element={<Stub title="Rooms (Phase 5b.2)" />} />
-            <Route path="groups" element={<Stub title="Groups (Phase 5b.2)" />} />
-            <Route path="constraints" element={<Stub title="Constraints (Phase 5b.2)" />} />
-            <Route path="schedules" element={<Schedules />} />
-            <Route path="schedules/:id" element={<ScheduleDetail />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <SchoolProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<AppShell />}>
+              <Route index element={<Dashboard />} />
+              <Route path="wizard" element={<Wizard />} />
+              <Route path="schools" element={<Stub title="Schools (Phase 5b.3)" />} />
+              <Route path="grades" element={<Stub title="Grades (Phase 5b.3)" />} />
+              <Route path="classes" element={<Classes />} />
+              <Route path="subjects" element={<Subjects />} />
+              <Route path="teachers" element={<Teachers />} />
+              <Route path="rooms" element={<Rooms />} />
+              <Route path="groups" element={<Stub title="Groups (Phase 5b.3)" />} />
+              <Route path="constraints" element={<Stub title="Constraints (Phase 5b.3)" />} />
+              <Route path="schedules" element={<Schedules />} />
+              <Route path="schedules/:id" element={<ScheduleDetail />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </SchoolProvider>
       <Toaster position="top-right" />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
