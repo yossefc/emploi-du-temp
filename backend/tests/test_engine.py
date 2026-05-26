@@ -272,6 +272,39 @@ class TestDialogueCycle:
 # ---------------------------------------------------------------------------
 
 class TestBarretteIntegration:
+    def test_barrette_with_shared_source_classes(self, db_session):
+        """REGRESSION : Math fort & Math normal partagent les MÊMES source_classes
+        (les élèves d'une שכבה sont dispatchés entre niveaux). Sans la finesse
+        "1 représentant par cohorte" dans ClassNoOverlap, c'est infaisable."""
+        env = setup_minimal_school(db_session, days=2, slots_per_day=3)
+
+        cohort = ParallelCohort(
+            school_id=env["school"].id, grade_id=env["grade"].id,
+            label="Math barrette",
+        )
+        db_session.add(cohort)
+        db_session.flush()
+
+        groups = []
+        for i, hours in enumerate([2, 2]):
+            g = Group(
+                school_id=env["school"].id, grade_id=env["grade"].id,
+                subject_id=env["subject"].id,
+                label=f"Math niv {i}", hours_per_week=hours,
+                group_type=GroupType.LEVEL_GROUP, parallel_cohort_id=cohort.id,
+            )
+            g.teachers.append(env["teachers"][i])
+            # POINT-CLÉ : les 2 groupes ont les MÊMES source_classes
+            g.source_classes.extend(env["classes"])
+            db_session.add(g)
+            groups.append(g)
+        db_session.commit()
+
+        result = TimetableEngine(db_session, env["school"].id).generate(max_time_seconds=5)
+        assert isinstance(result, SolveSuccess), \
+            f"Barrette à source_classes partagées doit être faisable, got {result}"
+        assert result.placed_entries == 4
+
     def test_parallel_cohort_groups_at_same_slot(self, db_session):
         """Math 5 yehidot + Math 3 yehidot dans la même cohorte : doivent être
         au même créneau dans la solution."""

@@ -54,13 +54,17 @@ class TeacherNoOverlapConstraint(_StructuralConstraint):
 class ClassNoOverlapConstraint(_StructuralConstraint):
     """Une classe ne suit qu'un cours à la fois.
 
-    Note : on raisonne sur source_classes des Groups. Si une classe contribue
-    à deux Groups parallèles (ex: barrette niveau), les élèves de cette classe
-    sont en réalité dispatchés entre les groupes — donc cette contrainte fait
-    qu'au plus UN groupe par classe-source par créneau peut tourner. Pour les
-    barrettes, c'est PARALLEL_COHORT_SAME_SLOT qui gère le "tournent ensemble".
-    Combiné, ça donne : exactement les groupes d'UNE cohorte tournent ensemble
-    sur le créneau, pas plusieurs cohortes simultanées pour la même classe.
+    Subtilité barrette : si une classe contribue à PLUSIEURS Groups d'une
+    même ParallelCohort (cas Math 5/4/3 yehidot sur une שכבה), les élèves
+    sont **dispatchés** entre les groupes — c'est UNE situation valide pour
+    la classe (tous ses élèves ont math, simplement à des niveaux différents).
+
+    On compte donc une cohorte comme **un seul représentant** dans le calcul
+    de "non-chevauchement" (les autres Groups de la cohorte sont déjà forcés
+    égaux par PARALLEL_COHORT_SAME_SLOT).
+
+    Sans cette finesse, ClassNoOverlap interdirait toute barrette dont les
+    Groups partagent les source_classes — cas iscool standard.
     """
     constraint_type = "class_no_overlap"
 
@@ -69,21 +73,21 @@ class ClassNoOverlapConstraint(_StructuralConstraint):
             group_ids = ctx.groups_of_class(cls.id)
             if len(group_ids) < 2:
                 continue
+            by_cohort: dict[int | None, list[int]] = {}
+            for g_id in group_ids:
+                g = ctx.group(g_id)
+                by_cohort.setdefault(g.parallel_cohort_id, []).append(g_id)
+
             for day, slot in ctx.all_active_positions():
-                vars_ = [ctx.assigned[g_id][(day, slot)] for g_id in group_ids]
-                # NOTE : on pourrait être plus fin et autoriser N groupes d'une
-                # même cohorte parallèle. Pour l'instant : au plus 1, et la
-                # contrainte PARALLEL_COHORT_SAME_SLOT s'occupera de forcer
-                # l'égalité entre groupes d'une cohorte.
-                # Du coup les groupes d'une cohorte parallèle ne doivent PAS
-                # tous partager les mêmes source_classes (sinon contradiction).
-                # En pratique : Math5/Math4/Math3 d'une שכבה ont chacun leur
-                # propre sous-ensemble d'élèves, donc source_classes peut être
-                # le même set mais les élèves dispatchés. Pour le solveur, on
-                # accepte au plus 1 Group par (class, slot) — les barrettes
-                # respectent ça car les élèves d'une classe ne vont QUE dans
-                # UN seul groupe de la cohorte.
-                ctx.model.Add(sum(vars_) <= 1)
+                reps = []
+                for cohort_id, gs in by_cohort.items():
+                    if cohort_id is None:
+                        reps.extend(ctx.assigned[g][(day, slot)] for g in gs)
+                    else:
+                        # 1 seul représentant par cohorte (égalité garantie par PARALLEL_COHORT_SAME_SLOT)
+                        reps.append(ctx.assigned[gs[0]][(day, slot)])
+                if len(reps) >= 2:
+                    ctx.model.Add(sum(reps) <= 1)
 
     def explain(self, ctx, lang="fr") -> ConstraintExplanation:
         return ConstraintExplanation(
