@@ -3,10 +3,6 @@
 Sans elles, le modèle produit des solutions non-cohérentes (deux cours
 en même temps pour la même classe, etc.). Pas stockées en DB, pas
 exposées à l'utilisateur. Ajoutées automatiquement par l'engine.
-
-Ces classes n'ont pas de `from_db` car elles ne viennent pas de la table
-`constraints`. Elles sont instanciées directement par l'engine et n'utilisent
-PAS d'assumption literal (non relaxables).
 """
 
 from __future__ import annotations
@@ -43,11 +39,13 @@ class TeacherNoOverlapConstraint(_StructuralConstraint):
                 vars_ = [ctx.assigned[g_id][(day, slot)] for g_id in group_ids]
                 ctx.model.Add(sum(vars_) <= 1)
 
-    def explain(self, ctx, lang="fr") -> ConstraintExplanation:
+    def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
-            title="Cohérence prof (structurelle)",
-            detail="Un même enseignant ne peut donner qu'un cours à la fois.",
-            origin="système (non modifiable)",
+            title_he="עקביות מורה (מבני)",
+            title_fr="Cohérence prof (structurelle)",
+            detail_he="מורה לא יכול ללמד שני שיעורים במקביל.",
+            detail_fr="Un même enseignant ne peut donner qu'un cours à la fois.",
+            origin="מערכת",
         )
 
 
@@ -55,16 +53,8 @@ class ClassNoOverlapConstraint(_StructuralConstraint):
     """Une classe ne suit qu'un cours à la fois.
 
     Subtilité barrette : si une classe contribue à PLUSIEURS Groups d'une
-    même ParallelCohort (cas Math 5/4/3 yehidot sur une שכבה), les élèves
-    sont **dispatchés** entre les groupes — c'est UNE situation valide pour
-    la classe (tous ses élèves ont math, simplement à des niveaux différents).
-
-    On compte donc une cohorte comme **un seul représentant** dans le calcul
-    de "non-chevauchement" (les autres Groups de la cohorte sont déjà forcés
-    égaux par PARALLEL_COHORT_SAME_SLOT).
-
-    Sans cette finesse, ClassNoOverlap interdirait toute barrette dont les
-    Groups partagent les source_classes — cas iscool standard.
+    même ParallelCohort, on compte la cohorte comme un seul représentant
+    (les autres Groups sont déjà forcés égaux par PARALLEL_COHORT_SAME_SLOT).
     """
     constraint_type = "class_no_overlap"
 
@@ -84,16 +74,17 @@ class ClassNoOverlapConstraint(_StructuralConstraint):
                     if cohort_id is None:
                         reps.extend(ctx.assigned[g][(day, slot)] for g in gs)
                     else:
-                        # 1 seul représentant par cohorte (égalité garantie par PARALLEL_COHORT_SAME_SLOT)
                         reps.append(ctx.assigned[gs[0]][(day, slot)])
                 if len(reps) >= 2:
                     ctx.model.Add(sum(reps) <= 1)
 
-    def explain(self, ctx, lang="fr") -> ConstraintExplanation:
+    def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
-            title="Cohérence classe (structurelle)",
-            detail="Une classe ne peut suivre qu'un cours à la fois.",
-            origin="système (non modifiable)",
+            title_he="עקביות כיתה (מבני)",
+            title_fr="Cohérence classe (structurelle)",
+            detail_he="כיתה לא יכולה להשתתף בשני שיעורים במקביל.",
+            detail_fr="Une classe ne peut suivre qu'un cours à la fois.",
+            origin="מערכת",
         )
 
 
@@ -111,20 +102,18 @@ class RoomNoOverlapConstraint(_StructuralConstraint):
                 if len(vars_) >= 2:
                     ctx.model.Add(sum(vars_) <= 1)
 
-    def explain(self, ctx, lang="fr") -> ConstraintExplanation:
+    def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
-            title="Cohérence salle (structurelle)",
-            detail="Une salle n'accueille qu'un cours à la fois.",
-            origin="système (non modifiable)",
+            title_he="עקביות חדר (מבני)",
+            title_fr="Cohérence salle (structurelle)",
+            detail_he="חדר יכול לארח רק שיעור אחד בכל זמן.",
+            detail_fr="Une salle n'accueille qu'un cours à la fois.",
+            origin="מערכת",
         )
 
 
 class ParallelCohortSameSlotConstraint(_StructuralConstraint):
-    """Tous les Groups d'une ParallelCohort doivent être au même créneau.
-
-    Implémenté en forçant l'égalité de `assigned[g1] == assigned[g2]` pour
-    chaque paire (g1, g2) dans la cohorte, sur chaque (day, slot).
-    """
+    """Tous les Groups d'une ParallelCohort doivent être au même créneau."""
     constraint_type = "parallel_cohort_same_slot"
 
     def apply(self, ctx: "SolverContext") -> None:
@@ -137,9 +126,11 @@ class ParallelCohortSameSlotConstraint(_StructuralConstraint):
                 for day, slot in ctx.all_active_positions():
                     ctx.model.Add(ctx.assigned[ref][(day, slot)] == ctx.assigned[other][(day, slot)])
 
-    def explain(self, ctx, lang="fr") -> ConstraintExplanation:
+    def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
-            title="Barrettes parallèles (structurelle)",
-            detail="Les groupes d'une même barrette doivent être au même créneau.",
-            origin="système (non modifiable)",
+            title_he="הקבצות מקבילות (מבני)",
+            title_fr="Barrettes parallèles (structurelle)",
+            detail_he="כל קבוצות באותה הקבצה חייבות להיות באותו זמן.",
+            detail_fr="Les groupes d'une même barrette doivent être au même créneau.",
+            origin="מערכת",
         )

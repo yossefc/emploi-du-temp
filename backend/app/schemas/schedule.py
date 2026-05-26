@@ -58,15 +58,32 @@ class GenerateRequest(BaseModel):
     max_time_seconds: float = Field(default=30.0, ge=1.0, le=300.0)
 
 
+class ConflictSuggestion(BaseModel):
+    """Suggestion d'action concrète pour résoudre un conflit."""
+    kind: str
+    title_he: str
+    title_fr: str
+    description_he: str
+    description_fr: str
+    # Action automatique optionnelle (1-clic depuis l'UI)
+    auto_action: Optional[dict] = None
+
+
 class ConstraintConflictInfo(BaseModel):
-    """Une entrée du MUS — contrainte identifiée comme cause de l'infaisabilité."""
+    """Une entrée du MUS — contrainte identifiée comme cause de l'infaisabilité.
+
+    Tous les textes sont fournis bilingue (FR + HE).
+    """
     constraint_id: Optional[int] = Field(
         None, description="ID DB de la contrainte (null si contrainte système implicite)"
     )
     constraint_type: str
-    title: str
-    detail: str
+    title_he: str
+    title_fr: str
+    detail_he: str
+    detail_fr: str
     origin: str
+    suggestions: list[ConflictSuggestion] = Field(default_factory=list)
 
 
 class GenerateResponseSuccess(BaseModel):

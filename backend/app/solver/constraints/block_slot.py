@@ -1,74 +1,60 @@
-"""Contraintes de BLOCAGE de créneaux (HARD relaxables).
-
-Bloque un (day, slot) ou une liste de slots pour :
-- L'école entière (BLOCK_SLOT_SCHOOL) — ex: prière, cérémonie
-- Une classe spécifique (BLOCK_SLOT_CLASS) — ex: sortie scolaire
-- Un Group spécifique (BLOCK_SLOT_GROUP) — ex: groupe en stage
-- Un prof (BLOCK_SLOT_TEACHER) — indisponibilité
-- Une salle (BLOCK_SLOT_ROOM) — travaux, réservation
-
-Toutes utilisent une assomption littérale pour permettre l'extraction MUS.
-
-Format des `parameters` JSON :
-{
-    "day_of_week": int,                 # 0-6, OU "days": [int, ...]
-    "slot_indices": [int, ...],         # créneaux bloqués ce(s) jour(s)
-    "target_id": int                    # FK selon le type (teacher_id, class_id, ...)
-}
-"""
+"""Contraintes de BLOCAGE de créneaux (HARD relaxables) — bilingues + suggestions."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from app.models import ConstraintPriority
-from app.solver.constraints.base import BaseConstraint, ConstraintExplanation
+from app.solver.constraints.base import (
+    BaseConstraint,
+    ConstraintExplanation,
+    Suggestion,
+    humanize_positions_fr,
+    humanize_positions_he,
+)
 
 if TYPE_CHECKING:
     from app.solver.context import SolverContext
 
 
 def _positions_from_params(params: dict) -> list[tuple[int, int]]:
-    """Extrait la liste de (day, slot) bloqués depuis le JSON params."""
     days = params.get("days") or ([params["day_of_week"]] if "day_of_week" in params else [])
     slots = params.get("slot_indices", [])
     return [(d, s) for d in days for s in slots]
 
 
-class _BlockSlotBase(BaseConstraint):
-    """Helper : ajoute une assomption + interdit les groups concernés à ces positions."""
+def _disable_self_suggestion(constraint_id: Optional[int], title_he: str, title_fr: str) -> Optional[Suggestion]:
+    if constraint_id is None:
+        return None
+    return Suggestion(
+        kind="disable_constraint",
+        title_he=f"בטל את האילוץ \"{title_he}\"",
+        title_fr=f"Désactiver la contrainte « {title_fr} »",
+        description_he="האילוץ יישאר במאגר אך לא ייעשה בו שימוש בייצור הבא.",
+        description_fr="La contrainte reste en base mais ne sera plus appliquée lors des générations suivantes.",
+        auto_action={"verb": "patch_constraint", "target_id": constraint_id, "patch": {"is_active": False}},
+    )
 
-    def __init__(
-        self,
-        *,
-        positions: list[tuple[int, int]],
-        target_id: Optional[int],
-        **kwargs,
-    ):
+
+class _BlockSlotBase(BaseConstraint):
+    def __init__(self, *, positions: list[tuple[int, int]], target_id: Optional[int], **kwargs):
         super().__init__(**kwargs)
         self.positions = positions
         self.target_id = target_id
 
     def _target_groups(self, ctx: "SolverContext") -> list[int]:
-        """À surcharger : liste des group_ids touchés par ce blocage."""
         raise NotImplementedError
 
     def apply(self, ctx: "SolverContext") -> None:
         group_ids = self._target_groups(ctx)
         if not group_ids or not self.positions:
             return
-
-        # Créer une assomption (1 = contrainte active). Si infaisable, le solveur
-        # remontera ce literal dans le MUS.
         lit = ctx.model.NewBoolVar(f"assum_{self.constraint_type}_{self.db_id or 'sys'}")
         self.assumption_literal = lit
-
         for day, slot in self.positions:
             for g_id in group_ids:
                 var = ctx.assigned[g_id].get((day, slot))
                 if var is None:
                     continue
-                # var == 0 quand lit == 1 (contrainte active)
                 ctx.model.Add(var == 0).OnlyEnforceIf(lit)
 
     @classmethod
@@ -76,9 +62,7 @@ class _BlockSlotBase(BaseConstraint):
         return cls(
             positions=_positions_from_params(params),
             target_id=params.get("target_id"),
-            db_id=db_id,
-            priority=priority,
-            weight=weight,
+            db_id=db_id, priority=priority, weight=weight,
             origin_description=origin_description,
         )
 
@@ -102,12 +86,17 @@ class BlockSlotSchoolConstraint(_BlockSlotBase):
     def _target_groups(self, ctx):
         return [g.id for g in ctx.groups]
 
-    def explain(self, ctx, lang="fr"):
-        slots_str = ", ".join(f"jour {d} créneau {s}" for d, s in self.positions)
+    def explain(self, ctx):
+        he = humanize_positions_he(self.positions)
+        fr = humanize_positions_fr(self.positions)
+        sug = _disable_self_suggestion(self.db_id, "סגירת בית ספר", "Fermeture école")
         return ConstraintExplanation(
-            title="École fermée",
-            detail=f"Aucun cours autorisé sur {slots_str}.",
-            origin=self.origin_description or "Admin école",
+            title_he="סגירת בית הספר",
+            title_fr="École fermée",
+            detail_he=f"אין שיעורים ב{he}.",
+            detail_fr=f"Aucun cours sur {fr}.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[s for s in [sug] if s],
         )
 
 
@@ -115,16 +104,26 @@ class BlockSlotClassConstraint(_BlockSlotBase):
     constraint_type = "block_slot_class"
 
     def _target_groups(self, ctx):
-        if self.target_id is None:
-            return []
-        return ctx.groups_of_class(self.target_id)
+        return ctx.groups_of_class(self.target_id) if self.target_id else []
 
-    def explain(self, ctx, lang="fr"):
-        slots_str = ", ".join(f"jour {d} créneau {s}" for d, s in self.positions)
+    def explain(self, ctx):
+        cls_label = f"#{self.target_id}"
+        try:
+            cls = next((c for c in ctx.classes if c.id == self.target_id), None)
+            if cls:
+                cls_label = cls.code
+        except Exception:
+            pass
+        he = humanize_positions_he(self.positions)
+        fr = humanize_positions_fr(self.positions)
+        sug = _disable_self_suggestion(self.db_id, f"כיתה {cls_label}", f"Classe {cls_label}")
         return ConstraintExplanation(
-            title=f"Classe #{self.target_id} indisponible",
-            detail=f"La classe ne peut suivre aucun cours sur {slots_str}.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"כיתה {cls_label} לא זמינה",
+            title_fr=f"Classe {cls_label} indisponible",
+            detail_he=f"הכיתה לא יכולה לקבל שיעורים ב{he}.",
+            detail_fr=f"La classe ne peut suivre aucun cours sur {fr}.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[s for s in [sug] if s],
         )
 
 
@@ -134,12 +133,24 @@ class BlockSlotGroupConstraint(_BlockSlotBase):
     def _target_groups(self, ctx):
         return [self.target_id] if self.target_id is not None else []
 
-    def explain(self, ctx, lang="fr"):
-        slots_str = ", ".join(f"jour {d} créneau {s}" for d, s in self.positions)
+    def explain(self, ctx):
+        g_label = f"#{self.target_id}"
+        try:
+            g = next((g for g in ctx.groups if g.id == self.target_id), None)
+            if g:
+                g_label = g.label
+        except Exception:
+            pass
+        he = humanize_positions_he(self.positions)
+        fr = humanize_positions_fr(self.positions)
+        sug = _disable_self_suggestion(self.db_id, f"קבוצה {g_label}", f"Groupe {g_label}")
         return ConstraintExplanation(
-            title=f"Groupe #{self.target_id} indisponible",
-            detail=f"Ce groupe ne peut pas être placé sur {slots_str}.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"קבוצה «{g_label}» לא זמינה",
+            title_fr=f"Groupe « {g_label} » indisponible",
+            detail_he=f"הקבוצה לא יכולה להיות משובצת ב{he}.",
+            detail_fr=f"Ce groupe ne peut pas être placé sur {fr}.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[s for s in [sug] if s],
         )
 
 
@@ -147,34 +158,113 @@ class BlockSlotTeacherConstraint(_BlockSlotBase):
     constraint_type = "block_slot_teacher"
 
     def _target_groups(self, ctx):
-        if self.target_id is None:
-            return []
-        return ctx.groups_of_teacher(self.target_id)
+        return ctx.groups_of_teacher(self.target_id) if self.target_id else []
 
-    def explain(self, ctx, lang="fr"):
+    def explain(self, ctx):
+        teacher = None
+        teacher_name = f"#{self.target_id}"
         try:
-            t = ctx.teacher(self.target_id) if self.target_id else None
-            who = t.full_name if t else f"Prof #{self.target_id}"
+            teacher = ctx.teacher(self.target_id) if self.target_id else None
+            if teacher:
+                teacher_name = teacher.full_name
         except KeyError:
-            who = f"Prof #{self.target_id}"
-        slots_str = ", ".join(f"jour {d} créneau {s}" for d, s in self.positions)
+            pass
+
+        n_blocked = len(self.positions)
+        total_slots = len(ctx.all_active_positions())
+        n_free = total_slots - n_blocked
+
+        teacher_hours_needed = 0
+        if teacher:
+            teacher_hours_needed = sum(
+                ctx.group(g_id).hours_per_week for g_id in ctx.groups_of_teacher(teacher.id)
+            )
+
+        he_positions = humanize_positions_he(self.positions)
+        fr_positions = humanize_positions_fr(self.positions)
+
+        if n_blocked > 8:
+            detail_he = (
+                f"{teacher_name} זמין רק ב-{n_free} משבצות מתוך {total_slots} בשבוע "
+                f"(נחוצות {teacher_hours_needed} שעות)."
+            )
+            detail_fr = (
+                f"{teacher_name} n'est disponible que sur {n_free} créneaux/{total_slots} "
+                f"par semaine (besoin : {teacher_hours_needed}h)."
+            )
+        else:
+            detail_he = f"{teacher_name} לא יכול ללמד ב{he_positions}."
+            detail_fr = f"{teacher_name} ne peut pas enseigner sur {fr_positions}."
+
+        suggestions: list[Suggestion] = []
+
+        sug_disable = _disable_self_suggestion(
+            self.db_id, f"זמינות {teacher_name}", f"Indispo {teacher_name}"
+        )
+        if sug_disable:
+            suggestions.append(sug_disable)
+
+        if teacher and n_free < teacher_hours_needed:
+            shortage = teacher_hours_needed - n_free
+            teacher_groups = sorted(
+                (ctx.group(g_id) for g_id in ctx.groups_of_teacher(teacher.id)),
+                key=lambda g: -g.hours_per_week,
+            )
+            if teacher_groups:
+                biggest = teacher_groups[0]
+                new_h = max(1, biggest.hours_per_week - shortage)
+                suggestions.append(Suggestion(
+                    kind="reduce_group_hours",
+                    title_he=f"צמצם את «{biggest.label}» ל-{new_h} שעות",
+                    title_fr=f"Réduire « {biggest.label} » à {new_h}h/sem",
+                    description_he=(
+                        f"המורה צריך {teacher_hours_needed}ש בשבוע אך זמין רק ל-{n_free}. "
+                        f"חוסר של {shortage} שעות."
+                    ),
+                    description_fr=(
+                        f"Le prof a besoin de {teacher_hours_needed}h mais seulement {n_free} dispo. "
+                        f"Manque {shortage}h."
+                    ),
+                    auto_action={
+                        "verb": "patch_group",
+                        "target_id": biggest.id,
+                        "patch": {"hours_per_week": new_h},
+                    },
+                ))
+
+        if teacher:
+            tg_groups = list(ctx.groups_of_teacher(teacher.id))
+            for g_id in tg_groups[:2]:
+                g = ctx.group(g_id)
+                alternates = [
+                    t for t in ctx.teachers
+                    if t.id != teacher.id
+                    and any(s.id == g.subject_id for s in t.qualified_subjects)
+                ]
+                if alternates:
+                    alt_names = ", ".join(t.full_name for t in alternates[:3])
+                    suggestions.append(Suggestion(
+                        kind="alternative_teacher",
+                        title_he=f"שנה מורה ל-«{g.label}»",
+                        title_fr=f"Changer de prof pour « {g.label} »",
+                        description_he=f"מורים מוסמכים זמינים : {alt_names}",
+                        description_fr=f"Profs qualifiés disponibles : {alt_names}",
+                    ))
+
         return ConstraintExplanation(
-            title=f"Indisponibilité {who}",
-            detail=f"{who} ne peut pas enseigner sur {slots_str}.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"זמינות {teacher_name}",
+            title_fr=f"Indisponibilité {teacher_name}",
+            detail_he=detail_he,
+            detail_fr=detail_fr,
+            origin=self.origin_description or "המורה",
+            suggestions=suggestions,
         )
 
 
 class BlockSlotRoomConstraint(_BlockSlotBase):
-    """Bloque l'utilisation d'une salle sur certains créneaux.
-
-    Sémantique : aucun Group ne peut utiliser cette room sur ces (day, slot).
-    Implémenté différemment des autres : on contraint `room_used[g][s][room_id] == 0`.
-    """
     constraint_type = "block_slot_room"
 
     def _target_groups(self, ctx):
-        # Overridé : on n'utilise pas le mécanisme générique
         return []
 
     def apply(self, ctx: "SolverContext") -> None:
@@ -189,12 +279,17 @@ class BlockSlotRoomConstraint(_BlockSlotBase):
                 if room_id in slot_vars:
                     ctx.model.Add(slot_vars[room_id] == 0).OnlyEnforceIf(lit)
 
-    def explain(self, ctx, lang="fr"):
-        r = ctx.room(self.target_id) if self.target_id else None
-        who = r.name if r else f"Salle #{self.target_id}"
-        slots_str = ", ".join(f"jour {d} créneau {s}" for d, s in self.positions)
+    def explain(self, ctx):
+        room = ctx.room(self.target_id) if self.target_id else None
+        room_name = room.name if room else f"#{self.target_id}"
+        he = humanize_positions_he(self.positions)
+        fr = humanize_positions_fr(self.positions)
+        sug = _disable_self_suggestion(self.db_id, f"חדר {room_name}", f"Salle {room_name}")
         return ConstraintExplanation(
-            title=f"Salle indisponible : {who}",
-            detail=f"La salle {who} n'est pas utilisable sur {slots_str}.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"חדר לא זמין : {room_name}",
+            title_fr=f"Salle indisponible : {room_name}",
+            detail_he=f"החדר {room_name} לא ניתן לשימוש ב{he}.",
+            detail_fr=f"La salle {room_name} n'est pas utilisable sur {fr}.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[s for s in [sug] if s],
         )

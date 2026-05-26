@@ -67,9 +67,22 @@ def generate_schedule(req: GenerateRequest, db: Session = Depends(get_db)):
                 ConstraintConflictInfo(
                     constraint_id=c.constraint_id,
                     constraint_type=c.constraint_type,
-                    title=c.explanation.title,
-                    detail=c.explanation.detail,
+                    title_he=c.explanation.title_he,
+                    title_fr=c.explanation.title_fr,
+                    detail_he=c.explanation.detail_he,
+                    detail_fr=c.explanation.detail_fr,
                     origin=c.explanation.origin,
+                    suggestions=[
+                        {
+                            "kind": s.kind,
+                            "title_he": s.title_he,
+                            "title_fr": s.title_fr,
+                            "description_he": s.description_he,
+                            "description_fr": s.description_fr,
+                            "auto_action": s.auto_action,
+                        }
+                        for s in c.explanation.suggestions
+                    ],
                 )
                 for c in result.conflicts
             ],

@@ -1,31 +1,24 @@
-"""Contraintes de VOLUMES horaires (HARD relaxables).
-
-- GROUP_HOURS_PER_WEEK : un Group doit avoir exactement N heures/semaine
-- TEACHER_MAX_HOURS_WEEK / DAY : plafonds prof
-- TEACHER_MAX_CONSECUTIVE : pas plus de N cours d'affilée
-
-NOTE: GROUP_HOURS_PER_WEEK est généralement renseigné directement sur le Group
-(`group.hours_per_week`). Cette contrainte permet de surcharger via la table
-`constraints` (ex: ajustement temporaire admin).
-"""
+"""Contraintes de VOLUMES horaires (HARD relaxables) — bilingues + suggestions."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from app.solver.constraints.base import BaseConstraint, ConstraintExplanation
+from app.solver.constraints.base import (
+    BaseConstraint,
+    ConstraintExplanation,
+    Suggestion,
+)
 
 if TYPE_CHECKING:
     from app.solver.context import SolverContext
 
 
 def _new_assumption(ctx: "SolverContext", name: str):
-    lit = ctx.model.NewBoolVar(name)
-    return lit
+    return ctx.model.NewBoolVar(name)
 
 
 class GroupHoursPerWeekConstraint(BaseConstraint):
-    """`sum(assigned[g][d][s]) == hours_per_week` pour ce group."""
     constraint_type = "group_hours_per_week"
 
     def __init__(self, *, group_id: int, hours: int, **kwargs):
@@ -33,7 +26,7 @@ class GroupHoursPerWeekConstraint(BaseConstraint):
         self.group_id = group_id
         self.hours = hours
 
-    def apply(self, ctx: "SolverContext") -> None:
+    def apply(self, ctx):
         if self.group_id not in ctx.assigned:
             return
         lit = _new_assumption(ctx, f"assum_grp_hours_{self.db_id or 'sys'}_{self.group_id}")
@@ -41,30 +34,56 @@ class GroupHoursPerWeekConstraint(BaseConstraint):
         total = sum(ctx.assigned[self.group_id].values())
         ctx.model.Add(total == self.hours).OnlyEnforceIf(lit)
 
-    def explain(self, ctx, lang="fr"):
+    def explain(self, ctx):
+        label = f"#{self.group_id}"
+        group = None
         try:
-            g = ctx.group(self.group_id)
-            label = g.label
+            group = ctx.group(self.group_id)
+            label = group.label
         except KeyError:
-            label = f"Groupe #{self.group_id}"
+            pass
+
+        suggestions: list[Suggestion] = []
+        if group:
+            if group.hours_per_week > 1:
+                new_h = group.hours_per_week - 1
+                suggestions.append(Suggestion(
+                    kind="reduce_group_hours",
+                    title_he=f"צמצם «{label}» ל-{new_h} שעות בשבוע",
+                    title_fr=f"Réduire « {label} » à {new_h}h/sem",
+                    description_he="הקטנה בשעה אחת עשויה לפתור את הקונפליקט.",
+                    description_fr="Réduire d'une heure peut suffire à résoudre le conflit.",
+                    auto_action={
+                        "verb": "patch_group",
+                        "target_id": group.id,
+                        "patch": {"hours_per_week": new_h},
+                    },
+                ))
+            suggestions.append(Suggestion(
+                kind="remove_group",
+                title_he=f"מחק את הקבוצה «{label}»",
+                title_fr=f"Supprimer le groupe « {label} »",
+                description_he="הקבוצה תוסר לחלוטין מהמערכת.",
+                description_fr="Le groupe sera complètement retiré de la planification.",
+            ))
+
         return ConstraintExplanation(
-            title=f"Volume horaire : {label}",
-            detail=f"Ce groupe doit avoir exactement {self.hours} créneau(x) par semaine.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"נפח שעות : {label}",
+            title_fr=f"Volume horaire : {label}",
+            detail_he=f"הקבוצה דורשת בדיוק {self.hours} משבצות בשבוע.",
+            detail_fr=f"Ce groupe doit avoir exactement {self.hours} créneau(x) par semaine.",
+            origin=self.origin_description or "הגדרת קבוצה",
+            suggestions=suggestions,
         )
 
     @classmethod
     def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
-        return cls(
-            group_id=params["group_id"],
-            hours=params["hours"],
-            db_id=db_id, priority=priority, weight=weight,
-            origin_description=origin_description,
-        )
+        return cls(group_id=params["group_id"], hours=params["hours"],
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)
 
 
 class TeacherMaxHoursWeekConstraint(BaseConstraint):
-    """Plafond hebdo pour un prof. `sum over all (d,s) and groups of teacher <= max`."""
     constraint_type = "teacher_max_hours_week"
 
     def __init__(self, *, teacher_id: int, max_hours: int, **kwargs):
@@ -72,7 +91,7 @@ class TeacherMaxHoursWeekConstraint(BaseConstraint):
         self.teacher_id = teacher_id
         self.max_hours = max_hours
 
-    def apply(self, ctx: "SolverContext") -> None:
+    def apply(self, ctx):
         group_ids = ctx.groups_of_teacher(self.teacher_id)
         if not group_ids:
             return
@@ -85,30 +104,42 @@ class TeacherMaxHoursWeekConstraint(BaseConstraint):
         )
         ctx.model.Add(total <= self.max_hours).OnlyEnforceIf(lit)
 
-    def explain(self, ctx, lang="fr"):
+    def explain(self, ctx):
+        name = f"#{self.teacher_id}"
         try:
-            t = ctx.teacher(self.teacher_id)
-            who = t.full_name
+            name = ctx.teacher(self.teacher_id).full_name
         except KeyError:
-            who = f"Prof #{self.teacher_id}"
+            pass
+        sug = None
+        if self.db_id:
+            sug = Suggestion(
+                kind="patch_constraint",
+                title_he=f"העלה את התקרה השבועית ל-{self.max_hours + 2}",
+                title_fr=f"Augmenter le plafond hebdo à {self.max_hours + 2}",
+                description_he="הגדל את התקרה בשעתיים.",
+                description_fr="Augmente le plafond de 2h.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"teacher_id": self.teacher_id, "max_hours": self.max_hours + 2}},
+                },
+            )
         return ConstraintExplanation(
-            title=f"Plafond hebdo : {who}",
-            detail=f"{who} ne doit pas dépasser {self.max_hours} créneaux par semaine.",
-            origin=self.origin_description or "Admin école / contrat",
+            title_he=f"תקרה שבועית : {name}",
+            title_fr=f"Plafond hebdo : {name}",
+            detail_he=f"{name} מוגבל ל-{self.max_hours} שעות לשבוע.",
+            detail_fr=f"{name} ne doit pas dépasser {self.max_hours} créneaux par semaine.",
+            origin=self.origin_description or "חוזה",
+            suggestions=[s for s in [sug] if s],
         )
 
     @classmethod
     def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
-        return cls(
-            teacher_id=params["teacher_id"],
-            max_hours=params["max_hours"],
-            db_id=db_id, priority=priority, weight=weight,
-            origin_description=origin_description,
-        )
+        return cls(teacher_id=params["teacher_id"], max_hours=params["max_hours"],
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)
 
 
 class TeacherMaxHoursDayConstraint(BaseConstraint):
-    """Plafond journalier prof."""
     constraint_type = "teacher_max_hours_day"
 
     def __init__(self, *, teacher_id: int, max_hours: int, **kwargs):
@@ -116,7 +147,7 @@ class TeacherMaxHoursDayConstraint(BaseConstraint):
         self.teacher_id = teacher_id
         self.max_hours = max_hours
 
-    def apply(self, ctx: "SolverContext") -> None:
+    def apply(self, ctx):
         group_ids = ctx.groups_of_teacher(self.teacher_id)
         if not group_ids:
             return
@@ -130,29 +161,29 @@ class TeacherMaxHoursDayConstraint(BaseConstraint):
             )
             ctx.model.Add(total <= self.max_hours).OnlyEnforceIf(lit)
 
-    def explain(self, ctx, lang="fr"):
+    def explain(self, ctx):
+        name = f"#{self.teacher_id}"
         try:
-            who = ctx.teacher(self.teacher_id).full_name
+            name = ctx.teacher(self.teacher_id).full_name
         except KeyError:
-            who = f"Prof #{self.teacher_id}"
+            pass
         return ConstraintExplanation(
-            title=f"Plafond journalier : {who}",
-            detail=f"{who} ne doit pas dépasser {self.max_hours} créneaux par jour.",
-            origin=self.origin_description or "Admin école",
+            title_he=f"תקרה יומית : {name}",
+            title_fr=f"Plafond journalier : {name}",
+            detail_he=f"{name} מוגבל ל-{self.max_hours} שעות ביום.",
+            detail_fr=f"{name} ne doit pas dépasser {self.max_hours} créneaux par jour.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[],
         )
 
     @classmethod
     def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
-        return cls(
-            teacher_id=params["teacher_id"],
-            max_hours=params["max_hours"],
-            db_id=db_id, priority=priority, weight=weight,
-            origin_description=origin_description,
-        )
+        return cls(teacher_id=params["teacher_id"], max_hours=params["max_hours"],
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)
 
 
 class TeacherMaxConsecutiveConstraint(BaseConstraint):
-    """Pas plus de N cours consécutifs sans pause."""
     constraint_type = "teacher_max_consecutive"
 
     def __init__(self, *, teacher_id: int, max_consecutive: int, **kwargs):
@@ -160,15 +191,13 @@ class TeacherMaxConsecutiveConstraint(BaseConstraint):
         self.teacher_id = teacher_id
         self.max_consecutive = max_consecutive
 
-    def apply(self, ctx: "SolverContext") -> None:
+    def apply(self, ctx):
         group_ids = ctx.groups_of_teacher(self.teacher_id)
         if not group_ids:
             return
         n = self.max_consecutive
         lit = _new_assumption(ctx, f"assum_t_consec_{self.db_id or 'sys'}_{self.teacher_id}")
         self.assumption_literal = lit
-        # Pour chaque fenêtre glissante de (n+1) créneaux consécutifs d'un jour,
-        # au plus n peuvent être enseignés.
         for day in ctx.active_days():
             slots = ctx.active_slots(day)
             for i in range(len(slots) - n):
@@ -180,22 +209,23 @@ class TeacherMaxConsecutiveConstraint(BaseConstraint):
                 )
                 ctx.model.Add(window_sum <= n).OnlyEnforceIf(lit)
 
-    def explain(self, ctx, lang="fr"):
+    def explain(self, ctx):
+        name = f"#{self.teacher_id}"
         try:
-            who = ctx.teacher(self.teacher_id).full_name
+            name = ctx.teacher(self.teacher_id).full_name
         except KeyError:
-            who = f"Prof #{self.teacher_id}"
+            pass
         return ConstraintExplanation(
-            title=f"Pas d'enchaînement long : {who}",
-            detail=f"{who} ne doit pas avoir plus de {self.max_consecutive} cours consécutifs.",
-            origin=self.origin_description or "Bien-être prof",
+            title_he=f"ללא רצף ארוך : {name}",
+            title_fr=f"Pas d'enchaînement long : {name}",
+            detail_he=f"{name} לא צריך יותר מ-{self.max_consecutive} שיעורים ברצף.",
+            detail_fr=f"{name} ne doit pas avoir plus de {self.max_consecutive} cours consécutifs.",
+            origin=self.origin_description or "רווחת המורה",
+            suggestions=[],
         )
 
     @classmethod
     def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
-        return cls(
-            teacher_id=params["teacher_id"],
-            max_consecutive=params["max_consecutive"],
-            db_id=db_id, priority=priority, weight=weight,
-            origin_description=origin_description,
-        )
+        return cls(teacher_id=params["teacher_id"], max_consecutive=params["max_consecutive"],
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)

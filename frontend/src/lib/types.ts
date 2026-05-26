@@ -244,12 +244,29 @@ export interface GenerateRequest {
   max_time_seconds?: number;
 }
 
+export interface ConflictSuggestion {
+  kind: string;
+  title_he: string;
+  title_fr: string;
+  description_he: string;
+  description_fr: string;
+  // Si non-null, l'UI peut afficher un bouton "Appliquer"
+  auto_action: {
+    verb: "patch_constraint" | "patch_group" | "delete_constraint";
+    target_id: number;
+    patch?: Record<string, unknown>;
+  } | null;
+}
+
 export interface ConstraintConflictInfo {
   constraint_id: number | null;
   constraint_type: string;
-  title: string;
-  detail: string;
+  title_he: string;
+  title_fr: string;
+  detail_he: string;
+  detail_fr: string;
   origin: string;
+  suggestions: ConflictSuggestion[];
 }
 
 export type GenerateResponse =

@@ -265,7 +265,7 @@ class TimetableEngine:
             conflicts.append(ConflictItem(
                 constraint_id=ac.db_id,
                 constraint_type=ac.instance.constraint_type,
-                explanation=ac.instance.explain(ctx, lang="fr"),
+                explanation=ac.instance.explain(ctx),
             ))
 
         return SolveConflict(conflicts=conflicts, solver_time_seconds=elapsed)

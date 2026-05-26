@@ -4,10 +4,11 @@
  */
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { CheckCircleIcon, ClockIcon, ArchiveBoxIcon, PlayIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon, PlayIcon } from "@heroicons/react/24/outline";
 
 import { api } from "@/lib/api";
 import type { ConstraintConflictInfo, GenerateResponse, School } from "@/lib/types";
@@ -18,23 +19,17 @@ import { Select } from "@/components/ui/Select";
 import { ConflictDialog } from "@/components/schedule/ConflictDialog";
 
 
-function StatusBadge({ status }: { status: string }) {
-  switch (status) {
-    case "active":
-      return <Badge variant="success">Actif</Badge>;
-    case "draft":
-      return <Badge variant="info">Brouillon</Badge>;
-    case "archived":
-      return <Badge variant="default">Archivé</Badge>;
-    default:
-      return <Badge>{status}</Badge>;
-  }
-}
-
-
 export default function Schedules() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  // Status badge avec i18n
+  function StatusBadge({ status }: { status: string }) {
+    const variant: "success" | "info" | "default" =
+      status === "active" ? "success" : status === "draft" ? "info" : "default";
+    return <Badge variant={variant}>{t(`schedules.status.${status}`)}</Badge>;
+  }
 
   // École sélectionnée (par défaut : la première trouvée)
   const { data: schools } = useQuery({
@@ -60,11 +55,11 @@ export default function Schedules() {
 
   // Mutation génération
   const generate = useMutation({
-    mutationFn: async (params: { disabledIds?: number[]; name?: string }) => {
+    mutationFn: async (params: { disabledIds?: number[] }) => {
       if (currentSchoolId === null) throw new Error("Pas d'école sélectionnée");
       return api.schedules.generate({
         school_id: currentSchoolId,
-        name: params.name ?? `Planning ${new Date().toLocaleDateString("fr-FR")}`,
+        name: t("schedules.default_name", { date: new Date().toLocaleDateString() }),
         disabled_constraint_ids: params.disabledIds ?? [],
         max_time_seconds: 30,
       });
@@ -72,14 +67,17 @@ export default function Schedules() {
     onSuccess: (res: GenerateResponse) => {
       if (res.success) {
         toast.success(
-          `Planning généré : ${res.placed_entries} cours placés en ${(res.solver_time_seconds * 1000).toFixed(0)} ms`,
+          t("schedules.schedule_generated", {
+            n: res.placed_entries,
+            ms: (res.solver_time_seconds * 1000).toFixed(0),
+          }),
           { duration: 4000 }
         );
         setConflict({ open: false, items: [], solverTime: 0 });
         qc.invalidateQueries({ queryKey: ["schedules"] });
         navigate(`/schedules/${res.schedule_id}`);
       } else if ("timeout" in res && res.timeout) {
-        toast.error("Timeout solveur — essayez d'augmenter max_time_seconds");
+        toast.error(t("conflict.timeout"));
       } else {
         setConflict({
           open: true,
@@ -88,16 +86,14 @@ export default function Schedules() {
         });
       }
     },
-    onError: (err: Error) => {
-      toast.error(`Erreur : ${err.message}`);
-    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   // Accept
   const accept = useMutation({
     mutationFn: (id: number) => api.schedules.accept(id),
     onSuccess: () => {
-      toast.success("Planning activé ✓");
+      toast.success(t("schedules.schedule_activated"));
       qc.invalidateQueries({ queryKey: ["schedules"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -107,7 +103,7 @@ export default function Schedules() {
   const remove = useMutation({
     mutationFn: (id: number) => api.schedules.remove(id),
     onSuccess: () => {
-      toast.success("Supprimé");
+      toast.success(t("schedules.deleted"));
       qc.invalidateQueries({ queryKey: ["schedules"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -118,10 +114,10 @@ export default function Schedules() {
       <Card>
         <CardBody>
           <p className="text-slate-600 dark:text-slate-400">
-            Aucune école. Commencez par le{" "}
-            <a href="/wizard" className="text-primary-600 underline">
-              wizard de configuration
-            </a>
+            {t("schedules.no_school_yet")}{" "}
+            <Link to="/wizard" className="text-primary-600 underline">
+              {t("schedules.wizard_link")}
+            </Link>
             .
           </p>
         </CardBody>
@@ -133,9 +129,11 @@ export default function Schedules() {
     <div className="space-y-6">
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Plannings</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            {t("schedules.title")}
+          </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Générez des emplois du temps et résolvez les conflits.
+            {t("schedules.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -153,31 +151,24 @@ export default function Schedules() {
             disabled={currentSchoolId === null}
           >
             <PlayIcon className="h-4 w-4" />
-            Générer
+            {t("actions.generate")}
           </Button>
         </div>
       </header>
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold">Plannings existants</h2>
+          <h2 className="font-semibold">{t("schedules.existing")}</h2>
         </CardHeader>
         <CardBody>
-          {isLoading && (
-            <p className="text-sm text-slate-500">Chargement…</p>
-          )}
+          {isLoading && <p className="text-sm text-slate-500">{t("actions.loading")}</p>}
           {!isLoading && (!schedules || schedules.length === 0) && (
-            <p className="text-sm text-slate-500">
-              Aucun planning. Cliquez sur "Générer" pour en créer un.
-            </p>
+            <p className="text-sm text-slate-500">{t("schedules.no_schedules")}</p>
           )}
           {schedules && schedules.length > 0 && (
             <ul className="divide-y divide-slate-200 dark:divide-slate-700">
               {schedules.map((s) => (
-                <li
-                  key={s.id}
-                  className="py-3 flex items-center justify-between gap-3 flex-wrap"
-                >
+                <li key={s.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => navigate(`/schedules/${s.id}`)}
@@ -188,8 +179,8 @@ export default function Schedules() {
                       </div>
                       <div className="text-xs text-slate-500">
                         {s.generated_at
-                          ? new Date(s.generated_at).toLocaleString("fr-FR")
-                          : "Non généré"}
+                          ? new Date(s.generated_at).toLocaleString()
+                          : "—"}
                       </div>
                     </button>
                     <StatusBadge status={s.status} />
@@ -203,7 +194,7 @@ export default function Schedules() {
                         loading={accept.isPending && accept.variables === s.id}
                       >
                         <CheckCircleIcon className="h-4 w-4" />
-                        Activer
+                        {t("actions.activate")}
                       </Button>
                     )}
                     {s.status !== "active" && (
@@ -211,10 +202,12 @@ export default function Schedules() {
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          if (confirm(`Supprimer "${s.name}" ?`)) remove.mutate(s.id);
+                          if (confirm(t("schedules.delete_confirm", { name: s.name }))) {
+                            remove.mutate(s.id);
+                          }
                         }}
                       >
-                        Supprimer
+                        {t("schedules.delete")}
                       </Button>
                     )}
                   </div>
@@ -236,6 +229,3 @@ export default function Schedules() {
     </div>
   );
 }
-
-// Marker utilisé pour le filtrage des icônes dans l'arbre (évite warning import inutile)
-void [ArchiveBoxIcon, ClockIcon];

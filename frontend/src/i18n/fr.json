@@ -28,9 +28,12 @@
     "finish": "Terminer",
     "generate": "Générer",
     "accept": "Accepter",
+    "activate": "Activer",
     "search": "Rechercher",
     "loading": "Chargement…",
-    "no_data": "Aucune donnée"
+    "no_data": "Aucune donnée",
+    "print": "Imprimer",
+    "apply": "Appliquer"
   },
   "wizard": {
     "title": "Configuration de votre école",
@@ -46,6 +49,44 @@
       "rooms": "Salles",
       "groups": "Groupes & barrettes"
     }
+  },
+  "schedules": {
+    "title": "Plannings",
+    "subtitle": "Générez des emplois du temps et résolvez les conflits.",
+    "existing": "Plannings existants",
+    "no_schedules": "Aucun planning. Cliquez sur \"Générer\" pour en créer un.",
+    "generated_at": "Généré le {{date}}",
+    "status": {
+      "draft": "Brouillon",
+      "active": "Actif",
+      "archived": "Archivé"
+    },
+    "delete_confirm": "Supprimer \"{{name}}\" ?",
+    "delete": "Supprimer",
+    "schedule_generated": "Planning généré : {{n}} cours placés en {{ms}} ms",
+    "schedule_activated": "Planning activé ✓",
+    "deleted": "Supprimé",
+    "no_school_yet": "Aucune école. Commencez par",
+    "wizard_link": "le wizard de configuration",
+    "default_name": "Planning {{date}}",
+    "entries_count": "Grille horaire ({{n}} cours)",
+    "back_to_list": "← Plannings",
+    "relaxed_report": "Contraintes relaxées"
+  },
+  "conflict": {
+    "title": "Conflit de contraintes",
+    "intro_a": "Le solveur n'a pas trouvé de planning satisfaisant toutes les contraintes.",
+    "intro_b": "Voici le sous-ensemble minimal de {{n}} contrainte(s) responsables. Cochez celles que vous acceptez de relaxer puis relancez la génération.",
+    "calculated_in": "Calculé en {{ms}} ms.",
+    "modifiable": "Contraintes modifiables ({{n}})",
+    "systemic": "Contraintes système ({{n}}) — non modifiables ici",
+    "systemic_hint": "Ces contraintes proviennent de la structure de l'école (volumes horaires des groupes, qualification des profs…). Pour les modifier, éditez le Group correspondant.",
+    "origin": "Origine : {{origin}}",
+    "suggestions_label": "💡 Solutions proposées",
+    "apply": "Appliquer",
+    "no_suggestions": "Aucune suggestion automatique pour cette contrainte.",
+    "retry_label": "Relaxer {{n}} contrainte(s) et relancer",
+    "timeout": "Timeout solveur — essayez d'augmenter max_time_seconds"
   },
   "common": {
     "yes": "Oui",
