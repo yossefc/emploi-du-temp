@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 
 import { AppShell } from "@/components/layout/AppShell";
 import Dashboard from "@/pages/Dashboard";
+import Wizard from "@/pages/Wizard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<AppShell />}>
             <Route index element={<Dashboard />} />
-            <Route path="wizard" element={<Stub title="Wizard (Phase 5b.1)" />} />
+            <Route path="wizard" element={<Wizard />} />
             <Route path="schools" element={<Stub title="Schools (Phase 5b.2)" />} />
             <Route path="grades" element={<Stub title="Grades (Phase 5b.2)" />} />
             <Route path="classes" element={<Stub title="Classes (Phase 5b.2)" />} />
