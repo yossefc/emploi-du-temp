@@ -13,6 +13,9 @@ import Teachers from "@/pages/Teachers";
 import Subjects from "@/pages/Subjects";
 import Classes from "@/pages/Classes";
 import Rooms from "@/pages/Rooms";
+import Schools from "@/pages/Schools";
+import Groups from "@/pages/Groups";
+import Constraints from "@/pages/Constraints";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,14 +45,14 @@ export default function App() {
             <Route path="/" element={<AppShell />}>
               <Route index element={<Dashboard />} />
               <Route path="wizard" element={<Wizard />} />
-              <Route path="schools" element={<Stub title="Schools (Phase 5b.3)" />} />
-              <Route path="grades" element={<Stub title="Grades (Phase 5b.3)" />} />
+              <Route path="schools" element={<Schools />} />
+              <Route path="grades" element={<Stub title="Grades" />} />
               <Route path="classes" element={<Classes />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="teachers" element={<Teachers />} />
               <Route path="rooms" element={<Rooms />} />
-              <Route path="groups" element={<Stub title="Groups (Phase 5b.3)" />} />
-              <Route path="constraints" element={<Stub title="Constraints (Phase 5b.3)" />} />
+              <Route path="groups" element={<Groups />} />
+              <Route path="constraints" element={<Constraints />} />
               <Route path="schedules" element={<Schedules />} />
               <Route path="schedules/:id" element={<ScheduleDetail />} />
               <Route path="*" element={<Navigate to="/" replace />} />
