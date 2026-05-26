@@ -6,6 +6,8 @@ import { Toaster } from "react-hot-toast";
 import { AppShell } from "@/components/layout/AppShell";
 import Dashboard from "@/pages/Dashboard";
 import Wizard from "@/pages/Wizard";
+import Schedules from "@/pages/Schedules";
+import ScheduleDetail from "@/pages/ScheduleDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,7 +45,8 @@ export default function App() {
             <Route path="rooms" element={<Stub title="Rooms (Phase 5b.2)" />} />
             <Route path="groups" element={<Stub title="Groups (Phase 5b.2)" />} />
             <Route path="constraints" element={<Stub title="Constraints (Phase 5b.2)" />} />
-            <Route path="schedules" element={<Stub title="Schedules (Phase 6)" />} />
+            <Route path="schedules" element={<Schedules />} />
+            <Route path="schedules/:id" element={<ScheduleDetail />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
