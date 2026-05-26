@@ -2,21 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+html.dark body {
+  @apply bg-slate-900 text-slate-100;
 }
 
-* {
-  box-sizing: border-box;
-} 
+/* RTL support pour l'hébreu */
+html[dir="rtl"] body {
+  direction: rtl;
+}
+
+/* Toujours afficher la barre de scroll pour éviter les sauts de layout */
+html {
+  overflow-y: scroll;
+}
