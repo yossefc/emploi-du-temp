@@ -1,33 +1,37 @@
-"""
-User model for authentication and authorization.
-"""
+"""User — comptes utilisateurs, multi-tenant."""
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
-from sqlalchemy.sql import func
 import enum
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Enum
+from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+from app.models.base_mixin import TimestampMixin
 
 
 class UserRole(str, enum.Enum):
-    """User roles enumeration."""
-    ADMIN = "admin"
-    TEACHER = "teacher"
-    VIEWER = "viewer"
+    SUPER_ADMIN = "super_admin"      # plateforme entière (cross-écoles)
+    SCHOOL_ADMIN = "school_admin"    # admin d'une école
+    TEACHER = "teacher"              # enseignant (lié à un Teacher)
+    VIEWER = "viewer"                # lecture seule (parent, élève)
 
 
-class User(Base):
-    """User model."""
+class User(Base, TimestampMixin):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String)
-    role = Column(Enum(UserRole), default=UserRole.VIEWER, nullable=False)
-    is_active = Column(Boolean, default=True)
-    language_preference = Column(String(2), default="he")  # 'he' or 'fr'
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now()) 
+
+    # NULL uniquement pour SUPER_ADMIN
+    school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(200), nullable=True)
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.VIEWER)
+    language_preference = Column(String(5), default="fr", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Si l'utilisateur est aussi un enseignant
+    teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="SET NULL"), nullable=True, unique=True)
+
+    school = relationship("School", back_populates="users")
+    teacher = relationship("Teacher", back_populates="user", uselist=False)

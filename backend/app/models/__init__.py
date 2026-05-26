@@ -1,65 +1,51 @@
-"""
-Database models package.
+"""Modèles SQLAlchemy — v2 refonte.
+
+Ordre d'import important pour résoudre les relations (back_populates).
 """
 
-# Ajouter en premier pour éviter les imports circulaires
+# 1. Tables d'association (pas de classes, juste des metadata)
 from app.models.associations import (
-    teacher_subjects,
-    class_mandatory_subjects,
-    class_preferred_rooms
+    teacher_qualified_subjects,
+    group_teachers,
+    group_source_classes,
 )
 
-# Puis importer les modèles
+# 2. School (racine) et utilisateurs
+from app.models.school import School
 from app.models.user import User, UserRole
-from app.models.teacher import Teacher
-from app.models.subject import Subject, SubjectType, configure_subject_relationships
-from app.models.class_group import ClassGroup, Grade, ClassType
-from app.models.room import Room, RoomType
-from app.models.constraint import (
-    DayOfWeek,
-    ConstraintType,
-    TeacherAvailability,
-    TeacherPreference,
-    RoomUnavailability,
-    ClassSubjectRequirement,
-    GlobalConstraint
-)
-from app.models.schedule import Schedule, ScheduleEntry, ScheduleConflict
 
-# Configure relationships after all models are imported
-configure_subject_relationships()
+# 3. Configuration école
+from app.models.time_grid import TimeSlot
+
+# 4. Entités métier — ordre : independents → dependents
+from app.models.subject import Subject
+from app.models.room import Room
+from app.models.teacher import Teacher
+from app.models.grade import Grade, GroupingPolicy
+from app.models.klass import Class
+from app.models.group import Group, GroupType, ParallelCohort
+
+# 5. Contraintes et planning
+from app.models.constraint import (
+    Constraint,
+    ConstraintType,
+    ConstraintPriority,
+    ConstraintOriginRole,
+)
+from app.models.schedule import Schedule, ScheduleEntry, ScheduleStatus
+
 
 __all__ = [
-    # Associations (tables d'association)
-    "teacher_subjects",
-    "class_mandatory_subjects", 
-    "class_preferred_rooms",
-    
-    # User models
-    "User",
-    "UserRole",
-    
-    # Core models
-    "Teacher",
-    "Subject",
-    "SubjectType",
-    "ClassGroup",
-    "Grade",
-    "ClassType",
-    "Room",
-    "RoomType",
-    
-    # Constraint models
-    "DayOfWeek",
-    "ConstraintType",
-    "TeacherAvailability",
-    "TeacherPreference",
-    "RoomUnavailability",
-    "ClassSubjectRequirement",
-    "GlobalConstraint",
-    
-    # Schedule models
-    "Schedule",
-    "ScheduleEntry",
-    "ScheduleConflict"
-] 
+    # Associations
+    "teacher_qualified_subjects", "group_teachers", "group_source_classes",
+    # Tenant & users
+    "School", "User", "UserRole",
+    # Time grid
+    "TimeSlot",
+    # Entités
+    "Subject", "Room", "Teacher", "Grade", "GroupingPolicy", "Class",
+    "Group", "GroupType", "ParallelCohort",
+    # Contraintes & planning
+    "Constraint", "ConstraintType", "ConstraintPriority", "ConstraintOriginRole",
+    "Schedule", "ScheduleEntry", "ScheduleStatus",
+]

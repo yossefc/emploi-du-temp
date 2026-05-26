@@ -1,81 +1,33 @@
-# backend/app/models/room.py
+"""Room — salle rattachée à une école."""
 
-from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
+
 from app.db.base import Base
-from enum import Enum as PyEnum
+from app.models.base_mixin import TimestampMixin
 
 
-class RoomType(str, PyEnum):
-    """Types de salles."""
-    CLASSROOM = "classroom"
-    LAB = "lab"
-    GYM = "gym"
-    MUSIC = "music"
-    ART = "art"
-    COMPUTER = "computer"
-    LIBRARY = "library"
-    AUDITORIUM = "auditorium"
-
-
-class Room(Base):
-    """Modèle pour les salles."""
+class Room(Base, TimestampMixin):
     __tablename__ = "rooms"
-    
+    __table_args__ = (
+        UniqueConstraint("school_id", "code", name="uq_room_school_code"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String(20), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
-    
-    # Champ renommé
-    capacity = Column(Integer, nullable=False)  # Ancien: capacite
-    
-    type = Column(Enum(RoomType), default=RoomType.CLASSROOM)
-    building = Column(String(100))
-    floor = Column(Integer)
-    
-    # Équipements disponibles (JSON)
-    equipment = Column(JSON)  # {"projector": true, "computers": 30, "whiteboard": true}
-    
-    # Caractéristiques spéciales
-    is_accessible = Column(Boolean, default=True)  # Accès handicapés
-    has_air_conditioning = Column(Boolean, default=True)
-    has_windows = Column(Boolean, default=True)
-    
-    # Disponibilité
-    is_active = Column(Boolean, default=True)
-    
-    # Relations
-    unavailabilities = relationship(
-        "RoomUnavailability", 
-        back_populates="room",
-        cascade="all, delete-orphan"
-    )
-    
-    schedule_entries = relationship(
-        "ScheduleEntry", 
-        back_populates="room"
-    )
-    
-    @property
-    def is_lab(self) -> bool:
-        """Vérifie si c'est un laboratoire."""
-        return self.type == RoomType.LAB  # type: ignore
-    
-    @property
-    def is_gym(self) -> bool:
-        """Vérifie si c'est un gymnase."""
-        return self.type == RoomType.GYM  # type: ignore
-    
-    @property
-    def has_computers(self) -> bool:
-        """Vérifie si la salle a des ordinateurs."""
-        return self.type == RoomType.COMPUTER or (  # type: ignore
-            self.equipment and self.equipment.get('computers', 0) > 0
-        )
-    
-    def can_accommodate(self, student_count: int) -> bool:
-        """Vérifie si la salle peut accueillir le nombre d'étudiants."""
-        return self.capacity >= student_count  # type: ignore
-    
-    def __repr__(self):
-        return f"<Room {self.code}: {self.name} (capacity: {self.capacity})>"
+    school_id = Column(Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    code = Column(String(30), nullable=False)
+    name = Column(String(200), nullable=False)
+    capacity = Column(Integer, nullable=False, default=30)
+
+    # Type libre, défini par l'école. Doit matcher Subject.required_room_type.
+    room_type = Column(String(50), nullable=True, index=True)
+
+    building = Column(String(100), nullable=True)
+    floor = Column(Integer, nullable=True)
+    equipment = Column(JSON, nullable=True)                # {"projector": true, "computers": 30}
+
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    school = relationship("School", back_populates="rooms")
+    schedule_entries = relationship("ScheduleEntry", back_populates="room")
