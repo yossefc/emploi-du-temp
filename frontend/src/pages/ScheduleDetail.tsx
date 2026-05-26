@@ -4,6 +4,7 @@
 
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { api } from "@/lib/api";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -13,6 +14,7 @@ import { TimetableGrid } from "@/components/schedule/TimetableGrid";
 
 
 export default function ScheduleDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const scheduleId = Number(id);
 
@@ -43,29 +45,26 @@ export default function ScheduleDetail() {
   });
 
   if (isLoading || !schedule) {
-    return <p className="text-slate-500">Chargement…</p>;
+    return <p className="text-slate-500">{t("actions.loading")}</p>;
   }
 
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Link
-            to="/schedules"
-            className="text-sm text-primary-600 hover:underline"
-          >
-            ← Plannings
+          <Link to="/schedules" className="text-sm text-primary-600 hover:underline">
+            {t("schedules.back_to_list")}
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
             {schedule.name}
           </h1>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant={schedule.status === "active" ? "success" : "info"}>
-              {schedule.status}
+              {t(`schedules.status.${schedule.status}`)}
             </Badge>
             {schedule.generated_at && (
               <span className="text-sm text-slate-500">
-                {new Date(schedule.generated_at).toLocaleString("fr-FR")}
+                {new Date(schedule.generated_at).toLocaleString()}
               </span>
             )}
           </div>
@@ -75,7 +74,7 @@ export default function ScheduleDetail() {
       <Card>
         <CardHeader>
           <h2 className="font-semibold">
-            Grille horaire ({schedule.entries.length} cours)
+            {t("schedules.entries_count", { n: schedule.entries.length })}
           </h2>
         </CardHeader>
         <CardBody>
@@ -87,7 +86,7 @@ export default function ScheduleDetail() {
               timeSlots={timeSlots}
             />
           ) : (
-            <p className="text-slate-500">Chargement des données…</p>
+            <p className="text-slate-500">{t("actions.loading")}</p>
           )}
         </CardBody>
       </Card>
@@ -97,7 +96,7 @@ export default function ScheduleDetail() {
           <Card>
             <CardHeader>
               <h2 className="font-semibold text-amber-700 dark:text-amber-400">
-                Contraintes relaxées
+                {t("schedules.relaxed_report")}
               </h2>
             </CardHeader>
             <CardBody>
@@ -110,7 +109,7 @@ export default function ScheduleDetail() {
 
       <div>
         <Button variant="secondary" onClick={() => window.print()}>
-          Imprimer
+          {t("actions.print")}
         </Button>
       </div>
     </div>

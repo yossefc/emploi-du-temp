@@ -167,13 +167,26 @@ class TeacherMaxHoursDayConstraint(BaseConstraint):
             name = ctx.teacher(self.teacher_id).full_name
         except KeyError:
             pass
+        suggestions = []
+        if self.db_id:
+            suggestions.append(Suggestion(
+                kind="patch_constraint",
+                title_he=f"העלה את התקרה היומית ל-{self.max_hours + 1} שעות",
+                title_fr=f"Augmenter le plafond journalier à {self.max_hours + 1}h",
+                description_he="הוסף שעה אחת לתקרה היומית.",
+                description_fr="Ajoute 1h au plafond journalier.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"teacher_id": self.teacher_id, "max_hours": self.max_hours + 1}},
+                },
+            ))
         return ConstraintExplanation(
             title_he=f"תקרה יומית : {name}",
             title_fr=f"Plafond journalier : {name}",
             detail_he=f"{name} מוגבל ל-{self.max_hours} שעות ביום.",
             detail_fr=f"{name} ne doit pas dépasser {self.max_hours} créneaux par jour.",
             origin=self.origin_description or "מנהל",
-            suggestions=[],
+            suggestions=suggestions,
         )
 
     @classmethod
@@ -215,13 +228,26 @@ class TeacherMaxConsecutiveConstraint(BaseConstraint):
             name = ctx.teacher(self.teacher_id).full_name
         except KeyError:
             pass
+        suggestions = []
+        if self.db_id:
+            suggestions.append(Suggestion(
+                kind="patch_constraint",
+                title_he=f"אפשר עד {self.max_consecutive + 1} שיעורים ברצף",
+                title_fr=f"Autoriser jusqu'à {self.max_consecutive + 1} cours consécutifs",
+                description_he="הקלה ברצף המקסימלי.",
+                description_fr="Assouplit la limite de consécutivité.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"teacher_id": self.teacher_id, "max_consecutive": self.max_consecutive + 1}},
+                },
+            ))
         return ConstraintExplanation(
             title_he=f"ללא רצף ארוך : {name}",
             title_fr=f"Pas d'enchaînement long : {name}",
             detail_he=f"{name} לא צריך יותר מ-{self.max_consecutive} שיעורים ברצף.",
             detail_fr=f"{name} ne doit pas avoir plus de {self.max_consecutive} cours consécutifs.",
             origin=self.origin_description or "רווחת המורה",
-            suggestions=[],
+            suggestions=suggestions,
         )
 
     @classmethod

@@ -3,6 +3,7 @@
  * Affichage simplifié pour le MVP.
  */
 
+import { useTranslation } from "react-i18next";
 import type { Group, ScheduleEntry, Subject, TimeSlot } from "@/lib/types";
 
 interface Props {
@@ -12,9 +13,12 @@ interface Props {
   timeSlots: TimeSlot[];
 }
 
-const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const DAY_LABELS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const DAY_LABELS_HE = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
 export function TimetableGrid({ entries, groups, subjects, timeSlots }: Props) {
+  const { i18n, t } = useTranslation();
+  const DAY_LABELS = i18n.language === "he" ? DAY_LABELS_HE : DAY_LABELS_FR;
   // Trouver les jours et créneaux actifs
   const days = Array.from(new Set(timeSlots.map((s) => s.day_of_week))).sort();
   const slotsPerDay = Math.max(0, ...timeSlots.map((s) => s.slot_index)) + 1;
@@ -47,8 +51,8 @@ export function TimetableGrid({ entries, groups, subjects, timeSlots }: Props) {
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0">
           <tr>
-            <th className="px-3 py-2 text-left font-medium text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-50 dark:bg-slate-900/50">
-              Créneau
+            <th className="px-3 py-2 text-start font-medium text-slate-600 dark:text-slate-300 sticky start-0 bg-slate-50 dark:bg-slate-900/50">
+              {t("schedules.slot_label", { defaultValue: i18n.language === "he" ? "משבצת" : "Créneau" })}
             </th>
             {days.map((d) => (
               <th

@@ -4,7 +4,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from app.solver.constraints.base import BaseConstraint, ConstraintExplanation
+from app.solver.constraints.base import BaseConstraint, ConstraintExplanation, Suggestion
+
+
+def _disable_self_suggestion(constraint_id, title_he, title_fr):
+    if constraint_id is None:
+        return None
+    return Suggestion(
+        kind="disable_constraint",
+        title_he=f"בטל את האילוץ \"{title_he}\"",
+        title_fr=f"Désactiver la contrainte « {title_fr} »",
+        description_he="האילוץ יישאר במאגר אך לא ייעשה בו שימוש בייצור הבא.",
+        description_fr="La contrainte reste en base mais ne sera plus appliquée.",
+        auto_action={"verb": "patch_constraint", "target_id": constraint_id, "patch": {"is_active": False}},
+    )
 
 if TYPE_CHECKING:
     from app.solver.context import SolverContext
@@ -51,13 +64,34 @@ class SubjectRequiredSlotRangeConstraint(BaseConstraint):
 
     def explain(self, ctx):
         subj = _subject_label(ctx, self.subject_id)
+        suggestions = []
+        # Suggestion 1 : désactiver
+        sug = _disable_self_suggestion(self.db_id, f"{subj} : משבצות נדרשות", f"{subj} : créneaux imposés")
+        if sug:
+            suggestions.append(sug)
+        # Suggestion 2 : élargir la plage
+        if self.db_id:
+            new_min = max(0, self.min_slot - 1)
+            new_max = self.max_slot + 1
+            suggestions.append(Suggestion(
+                kind="patch_constraint",
+                title_he=f"הרחב את הטווח : משבצות {new_min + 1}-{new_max + 1}",
+                title_fr=f"Élargir la plage : créneaux {new_min + 1}-{new_max + 1}",
+                description_he="הרחב את החלון של משבצת אחת בכל צד.",
+                description_fr="Étend la fenêtre d'un créneau de chaque côté.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"subject_id": self.subject_id, "min_slot": new_min, "max_slot": new_max,
+                                              **({"days": self.days} if self.days else {})}},
+                },
+            ))
         return ConstraintExplanation(
             title_he=f"{subj} : משבצות נדרשות",
             title_fr=f"{subj} : créneaux imposés",
             detail_he=f"המקצוע חייב להיות בין משבצות {self.min_slot + 1} ו-{self.max_slot + 1}.",
             detail_fr=f"Cette matière doit être placée entre les créneaux {self.min_slot + 1} et {self.max_slot + 1}.",
             origin=self.origin_description or "מנהל",
-            suggestions=[],
+            suggestions=suggestions,
         )
 
     @classmethod
@@ -99,13 +133,31 @@ class SubjectMaxPerDayConstraint(BaseConstraint):
         subj = _subject_label(ctx, self.subject_id)
         scope_he = f"כיתה #{self.class_id}" if self.class_id else "כל הכיתות"
         scope_fr = f"classe #{self.class_id}" if self.class_id else "toutes classes"
+        suggestions = []
+        sug = _disable_self_suggestion(self.db_id, f"תקרה יומית {subj}", f"Plafond {subj}")
+        if sug:
+            suggestions.append(sug)
+        # Suggestion : augmenter le plafond d'1
+        if self.db_id:
+            suggestions.append(Suggestion(
+                kind="patch_constraint",
+                title_he=f"העלה את התקרה ל-{self.max_per_day + 1} שעות ביום",
+                title_fr=f"Augmenter le plafond à {self.max_per_day + 1}h/jour",
+                description_he="הוסף שעה אחת לתקרה היומית.",
+                description_fr="Ajoute 1h au plafond journalier.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"subject_id": self.subject_id, "max_per_day": self.max_per_day + 1,
+                                              **({"class_id": self.class_id} if self.class_id else {})}},
+                },
+            ))
         return ConstraintExplanation(
             title_he=f"תקרה יומית : {subj}",
             title_fr=f"Plafond journalier : {subj}",
             detail_he=f"מקסימום {self.max_per_day} משבצות ביום עבור {scope_he}.",
             detail_fr=f"Max {self.max_per_day} créneau(x)/jour pour {scope_fr}.",
             origin=self.origin_description or "מנהל",
-            suggestions=[],
+            suggestions=suggestions,
         )
 
     @classmethod
@@ -147,13 +199,29 @@ class SubjectConsecutiveHoursConstraint(BaseConstraint):
 
     def explain(self, ctx):
         subj = _subject_label(ctx, self.subject_id)
+        suggestions = []
+        sug = _disable_self_suggestion(self.db_id, f"{subj} רצף", f"{subj} consécutif")
+        if sug:
+            suggestions.append(sug)
+        if self.db_id and self.consecutive_hours > 1:
+            suggestions.append(Suggestion(
+                kind="patch_constraint",
+                title_he=f"צמצם הדרישה ל-{self.consecutive_hours - 1} משבצות ברצף",
+                title_fr=f"Réduire l'exigence à {self.consecutive_hours - 1} créneau(x) consécutifs",
+                description_he="הקטנה של הדרישה לרצף יכולה לעזור לפותר למצוא פתרון.",
+                description_fr="Réduire l'exigence de consécutivité aide le solveur.",
+                auto_action={
+                    "verb": "patch_constraint", "target_id": self.db_id,
+                    "patch": {"parameters": {"subject_id": self.subject_id, "consecutive_hours": self.consecutive_hours - 1}},
+                },
+            ))
         return ConstraintExplanation(
             title_he=f"{subj} : משבצות רצופות",
             title_fr=f"{subj} : créneaux consécutifs",
             detail_he=f"המקצוע חייב לתפוס {self.consecutive_hours} משבצות ברצף.",
             detail_fr=f"Cette matière doit occuper {self.consecutive_hours} créneau(x) d'affilée.",
             origin=self.origin_description or "פדגוגי",
-            suggestions=[],
+            suggestions=suggestions,
         )
 
     @classmethod
