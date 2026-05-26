@@ -49,17 +49,19 @@ def split_class_blocks(text: str) -> list[tuple[str, str]]:
 # Matières (codes simplifiés pour l'API).
 # Détectées dans le PDF. On dédupe les variantes (ex: "תנ"ך - בי"" → "תנ"ך").
 SUBJECT_PATTERNS = {
+    # ORDRE IMPORTANT : les variantes "מצויי" (excellence) doivent être listées AVANT
+    # les versions standard (sinon "תנ\"ך" matche "תנ\"ך מצויי" en premier).
     "TEFILA": ["ביאורי תפי", "ביאורי תפילה"],
-    "TANACH": ['תנ"ך'],
     "TANACH_M": ['תנ"ך מצויי', 'תנ"ך מצויינים'],
-    "TORAH_BAAL": ["תורה שבעל"],
-    "TALMUD": ["תלמוד"],
+    "TANACH": ['תנ"ך'],
     "TALMUD_M": ["תלמוד מצוי"],
+    "TALMUD": ["תלמוד"],
+    "TORAH_BAAL": ["תורה שבעל"],
     "MACHSHEVET": ["מחשבת ישרא", "מחשבת ישראל"],
     "MATH": ["מתמטיקה"],
     "ENGLISH": ["אנגלית"],
-    "SCIENCES": ["מדעים"],
     "SCIENCES_M": ["מדעים מצוי"],
+    "SCIENCES": ["מדעים"],
     "HEVANA": ["הבנה והבעה"],
     "HABAA_M": ["הבעה מצויי"],
     "HEBREW": ["עברית"],
