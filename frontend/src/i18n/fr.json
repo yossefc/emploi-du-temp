@@ -14,6 +14,7 @@
     "groups": "Groupes",
     "cohorts": "Barrettes",
     "constraints": "Contraintes",
+    "policies": "Politiques école",
     "schedules": "Plannings",
     "wizard": "Configurer mon école"
   },
@@ -73,6 +74,10 @@
     "teacher_qualified_for_subject": "Qualification prof",
     "teacher_language_required": "Langue prof requise",
     "teachers_must_teach_together": "Profs enseignent ensemble",
+    "teacher_prefer_morning": "Préfère le matin",
+    "teacher_prefer_afternoon": "Préfère l'après-midi",
+    "teacher_prefer_grouped_days": "Jours groupés",
+    "teacher_avoid_gaps": "Éviter les trous",
     "extra_hours_at_day_edge": "Heures en bord de journée"
   },
   "group_type": {

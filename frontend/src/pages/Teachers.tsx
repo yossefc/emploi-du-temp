@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 
 import { api } from "@/lib/api";
 import type { Teacher } from "@/lib/types";
@@ -107,7 +108,19 @@ export default function Teachers() {
             deletingId={remove.isPending ? (remove.variables as number) : null}
             columns={[
               { key: "code", label: t("columns.code"), width: "12%" },
-              { key: "name", label: t("columns.name"), render: (r) => `${r.first_name} ${r.last_name}` },
+              {
+                key: "name",
+                label: t("columns.name"),
+                render: (r) => (
+                  <Link
+                    to={`/teachers/${r.id}/availability`}
+                    className="hover:underline text-primary-700 dark:text-primary-300 inline-flex items-center gap-1"
+                  >
+                    <CalendarDaysIcon className="h-4 w-4" />
+                    {r.first_name} {r.last_name}
+                  </Link>
+                ),
+              },
               { key: "email", label: t("columns.email"), render: (r) => r.email ?? "—" },
               {
                 key: "languages",

@@ -10,12 +10,14 @@ import Wizard from "@/pages/Wizard";
 import Schedules from "@/pages/Schedules";
 import ScheduleDetail from "@/pages/ScheduleDetail";
 import Teachers from "@/pages/Teachers";
+import TeacherAvailability from "@/pages/TeacherAvailability";
 import Subjects from "@/pages/Subjects";
 import Classes from "@/pages/Classes";
 import Rooms from "@/pages/Rooms";
 import Schools from "@/pages/Schools";
 import Groups from "@/pages/Groups";
 import Constraints from "@/pages/Constraints";
+import Policies from "@/pages/Policies";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,9 +52,11 @@ export default function App() {
               <Route path="classes" element={<Classes />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="teachers" element={<Teachers />} />
+              <Route path="teachers/:id/availability" element={<TeacherAvailability />} />
               <Route path="rooms" element={<Rooms />} />
               <Route path="groups" element={<Groups />} />
               <Route path="constraints" element={<Constraints />} />
+              <Route path="policies" element={<Policies />} />
               <Route path="schedules" element={<Schedules />} />
               <Route path="schedules/:id" element={<ScheduleDetail />} />
               <Route path="*" element={<Navigate to="/" replace />} />

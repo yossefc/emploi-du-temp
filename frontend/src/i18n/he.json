@@ -14,6 +14,7 @@
     "groups": "קבוצות",
     "cohorts": "הקבצות",
     "constraints": "אילוצים",
+    "policies": "מדיניות בית הספר",
     "schedules": "מערכות",
     "wizard": "הגדרת בית הספר"
   },
@@ -73,6 +74,10 @@
     "teacher_qualified_for_subject": "הסמכת מורה",
     "teacher_language_required": "שפת מורה נדרשת",
     "teachers_must_teach_together": "מורים מלמדים יחד",
+    "teacher_prefer_morning": "מעדיף בוקר",
+    "teacher_prefer_afternoon": "מעדיף אחר הצהריים",
+    "teacher_prefer_grouped_days": "ימים מרוכזים",
+    "teacher_avoid_gaps": "בלי חלונות",
     "extra_hours_at_day_edge": "שעות בקצה היום"
   },
   "group_type": {

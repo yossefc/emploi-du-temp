@@ -60,6 +60,10 @@ export const ConstraintType = {
   TEACHER_QUALIFIED_FOR_SUBJECT: "teacher_qualified_for_subject",
   TEACHER_LANGUAGE_REQUIRED: "teacher_language_required",
   TEACHERS_MUST_TEACH_TOGETHER: "teachers_must_teach_together",
+  TEACHER_PREFER_MORNING: "teacher_prefer_morning",
+  TEACHER_PREFER_AFTERNOON: "teacher_prefer_afternoon",
+  TEACHER_PREFER_GROUPED_DAYS: "teacher_prefer_grouped_days",
+  TEACHER_AVOID_GAPS: "teacher_avoid_gaps",
   EXTRA_HOURS_AT_DAY_EDGE: "extra_hours_at_day_edge",
 } as const;
 export type ConstraintType = (typeof ConstraintType)[keyof typeof ConstraintType];

@@ -59,6 +59,11 @@ class SolverContext:
     # group_id -> { (day, slot) -> { room_id -> BoolVar } }
     room_used: dict[int, dict[Slot, dict[int, cp_model.IntVar]]] = field(default_factory=dict)
 
+    # --- Termes de pénalité SOFT (à minimiser dans l'objectif) ---
+    # Chaque entry : (expr, weight). Expr est un IntVar ou somme.
+    # L'engine appelle model.Minimize(sum(w * expr)) si non-vide.
+    soft_penalty_terms: list = field(default_factory=list)
+
     # --- Caches dérivés ---
     _slots_by_day: dict[int, list[int]] = field(default_factory=dict, repr=False)
     _groups_by_teacher: dict[int, list[int]] = field(default_factory=dict, repr=False)

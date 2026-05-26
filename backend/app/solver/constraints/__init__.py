@@ -15,6 +15,12 @@ from app.solver.constraints.assignment import (
     TeacherLanguageRequiredConstraint,
     TeacherQualifiedForSubjectConstraint,
 )
+from app.solver.constraints.preferences import (
+    TeacherAvoidGapsConstraint,
+    TeacherPreferAfternoonConstraint,
+    TeacherPreferGroupedDaysConstraint,
+    TeacherPreferMorningConstraint,
+)
 from app.solver.constraints.teaching import TeachersMustTeachTogetherConstraint
 from app.solver.constraints.barrette import ExtraHoursAtDayEdgeConstraint
 from app.solver.constraints.base import BaseConstraint, ConstraintExplanation
@@ -75,6 +81,11 @@ CONSTRAINT_REGISTRY: dict[str, type[BaseConstraint]] = {
     ConstraintType.TEACHER_QUALIFIED_FOR_SUBJECT.value: TeacherQualifiedForSubjectConstraint,
     ConstraintType.TEACHER_LANGUAGE_REQUIRED.value: TeacherLanguageRequiredConstraint,
     ConstraintType.TEACHERS_MUST_TEACH_TOGETHER.value: TeachersMustTeachTogetherConstraint,
+    # Préférences SOFT
+    ConstraintType.TEACHER_PREFER_MORNING.value: TeacherPreferMorningConstraint,
+    ConstraintType.TEACHER_PREFER_AFTERNOON.value: TeacherPreferAfternoonConstraint,
+    ConstraintType.TEACHER_PREFER_GROUPED_DAYS.value: TeacherPreferGroupedDaysConstraint,
+    ConstraintType.TEACHER_AVOID_GAPS.value: TeacherAvoidGapsConstraint,
     # Barrette
     ConstraintType.EXTRA_HOURS_AT_DAY_EDGE.value: ExtraHoursAtDayEdgeConstraint,
 }

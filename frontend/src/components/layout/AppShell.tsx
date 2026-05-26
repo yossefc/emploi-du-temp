@@ -21,6 +21,7 @@ const NAV_ITEMS: { key: keyof Record<string, string>; to: string }[] = [
   { key: "rooms", to: "/rooms" },
   { key: "groups", to: "/groups" },
   { key: "constraints", to: "/constraints" },
+  { key: "policies", to: "/policies" },
   { key: "schedules", to: "/schedules" },
 ];
 

@@ -128,6 +128,10 @@ class TimetableEngine:
 
         applied = self._apply_constraints(ctx, disabled=disabled)
 
+        # Objectif : minimiser la somme pondérée des pénalités SOFT
+        if ctx.soft_penalty_terms:
+            ctx.model.Minimize(sum(expr * weight for expr, weight in ctx.soft_penalty_terms))
+
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = max_time_seconds
         status = solver.Solve(ctx.model)
