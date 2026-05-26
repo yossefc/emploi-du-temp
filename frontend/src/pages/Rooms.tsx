@@ -84,10 +84,10 @@ export default function Rooms() {
             onDelete={(row) => remove.mutate(row.id)}
             deletingId={remove.isPending ? (remove.variables as number) : null}
             columns={[
-              { key: "code", label: "Code", width: "15%" },
-              { key: "name", label: "Nom / שם" },
-              { key: "capacity", label: "קיבולת / Capacité", width: "15%" },
-              { key: "room_type", label: "Type", render: (r) => r.room_type ?? "—", width: "20%" },
+              { key: "code", label: t("columns.code"), width: "15%" },
+              { key: "name", label: t("columns.name") },
+              { key: "capacity", label: t("columns.capacity"), width: "15%" },
+              { key: "room_type", label: t("columns.type"), render: (r) => r.room_type ?? "—", width: "20%" },
             ]}
           />
         </CardBody>

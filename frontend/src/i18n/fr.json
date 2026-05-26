@@ -33,7 +33,53 @@
     "loading": "Chargement…",
     "no_data": "Aucune donnée",
     "print": "Imprimer",
-    "apply": "Appliquer"
+    "apply": "Appliquer",
+    "select_current": "Sélectionner"
+  },
+  "columns": {
+    "code": "Code",
+    "name": "Nom",
+    "label": "Libellé",
+    "email": "Email",
+    "languages": "Langues",
+    "subjects": "Matières",
+    "teachers": "Profs",
+    "classes": "Classes",
+    "grade": "Niveau",
+    "students": "Élèves",
+    "capacity": "Capacité",
+    "type": "Type",
+    "hours_per_week": "h/sem",
+    "color": "Couleur",
+    "active": "Actif",
+    "origin": "Origine",
+    "detail": "Détail",
+    "status": "Statut",
+    "language_default": "Langue"
+  },
+  "constraint_type": {
+    "block_slot_school": "Fermeture école",
+    "block_slot_class": "Indispo classe",
+    "block_slot_group": "Indispo groupe",
+    "block_slot_teacher": "Indispo prof",
+    "block_slot_room": "Salle indispo",
+    "subject_required_slot_range": "Plage créneaux requise",
+    "subject_max_per_day": "Plafond matière jour",
+    "subject_consecutive_hours": "Matière consécutive",
+    "group_hours_per_week": "Volume horaire groupe",
+    "teacher_max_hours_week": "Plafond prof/sem",
+    "teacher_max_hours_day": "Plafond prof/jour",
+    "teacher_max_consecutive": "Enchaînement prof",
+    "teacher_qualified_for_subject": "Qualification prof",
+    "teacher_language_required": "Langue prof requise",
+    "extra_hours_at_day_edge": "Heures en bord de journée"
+  },
+  "group_type": {
+    "whole_class": "Classe entière",
+    "level_group": "Hekbatsa niveau",
+    "option_group": "Option",
+    "gender_group": "Genre",
+    "split_group": "Dédoublement"
   },
   "wizard": {
     "title": "Configuration de votre école",
@@ -71,7 +117,8 @@
     "default_name": "Planning {{date}}",
     "entries_count": "Grille horaire ({{n}} cours)",
     "back_to_list": "← Plannings",
-    "relaxed_report": "Contraintes relaxées"
+    "relaxed_report": "Contraintes relaxées",
+    "slot_label": "Créneau"
   },
   "conflict": {
     "title": "Conflit de contraintes",

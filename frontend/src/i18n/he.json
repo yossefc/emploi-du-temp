@@ -33,7 +33,53 @@
     "loading": "טוען…",
     "no_data": "אין נתונים",
     "print": "הדפס",
-    "apply": "החל"
+    "apply": "החל",
+    "select_current": "בחר"
+  },
+  "columns": {
+    "code": "קוד",
+    "name": "שם",
+    "label": "תווית",
+    "email": "דוא\"ל",
+    "languages": "שפות",
+    "subjects": "מקצועות",
+    "teachers": "מורים",
+    "classes": "כיתות",
+    "grade": "שכבה",
+    "students": "תלמידים",
+    "capacity": "קיבולת",
+    "type": "סוג",
+    "hours_per_week": "ש/שב",
+    "color": "צבע",
+    "active": "פעיל",
+    "origin": "מקור",
+    "detail": "פרטים",
+    "status": "סטטוס",
+    "language_default": "שפה"
+  },
+  "constraint_type": {
+    "block_slot_school": "סגירת בית ספר",
+    "block_slot_class": "אי-זמינות כיתה",
+    "block_slot_group": "אי-זמינות קבוצה",
+    "block_slot_teacher": "אי-זמינות מורה",
+    "block_slot_room": "חדר לא זמין",
+    "subject_required_slot_range": "טווח משבצות נדרש",
+    "subject_max_per_day": "תקרת מקצוע יומית",
+    "subject_consecutive_hours": "מקצוע רצוף",
+    "group_hours_per_week": "נפח שעות קבוצה",
+    "teacher_max_hours_week": "תקרה שבועית למורה",
+    "teacher_max_hours_day": "תקרה יומית למורה",
+    "teacher_max_consecutive": "רצף שיעורים למורה",
+    "teacher_qualified_for_subject": "הסמכת מורה",
+    "teacher_language_required": "שפת מורה נדרשת",
+    "extra_hours_at_day_edge": "שעות בקצה היום"
+  },
+  "group_type": {
+    "whole_class": "כיתה שלמה",
+    "level_group": "הקבצת רמה",
+    "option_group": "אופציה",
+    "gender_group": "מגדר",
+    "split_group": "פיצול"
   },
   "wizard": {
     "title": "הגדרת בית הספר שלך",
@@ -71,7 +117,8 @@
     "default_name": "מערכת {{date}}",
     "entries_count": "טבלת שעות ({{n}} שיעורים)",
     "back_to_list": "← מערכות",
-    "relaxed_report": "אילוצים שהוקלו"
+    "relaxed_report": "אילוצים שהוקלו",
+    "slot_label": "משבצת"
   },
   "conflict": {
     "title": "קונפליקט אילוצים",

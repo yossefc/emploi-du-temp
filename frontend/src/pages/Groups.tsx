@@ -118,28 +118,28 @@ export default function Groups() {
             onDelete={(row) => remove.mutate(row.id)}
             deletingId={remove.isPending ? (remove.variables as number) : null}
             columns={[
-              { key: "label", label: "Label" },
+              { key: "label", label: t("columns.label") },
               {
                 key: "subject",
                 label: t("nav.subjects"),
                 render: (r) => {
                   const s = subjects?.find((x) => x.id === r.subject_id);
                   return (
-                    <Badge variant="info" className="!text-white" >
+                    <Badge variant="default">
                       <span style={{ color: s?.color_hex ?? undefined }}>● </span>
-                      {s?.code ?? `#${r.subject_id}`}
+                      {s?.name_he ?? s?.code ?? `#${r.subject_id}`}
                     </Badge>
                   );
                 },
-                width: "12%",
+                width: "15%",
               },
               {
                 key: "grade",
-                label: t("nav.grades"),
-                render: (r) => grades?.find((g) => g.id === r.grade_id)?.code ?? `#${r.grade_id}`,
+                label: t("columns.grade"),
+                render: (r) => grades?.find((g) => g.id === r.grade_id)?.name ?? `#${r.grade_id}`,
                 width: "10%",
               },
-              { key: "hours_per_week", label: "h/sem", width: "10%" },
+              { key: "hours_per_week", label: t("columns.hours_per_week"), width: "10%" },
               {
                 key: "teachers",
                 label: t("nav.teachers"),

@@ -235,18 +235,18 @@ export default function Constraints() {
               },
               {
                 key: "constraint_type",
-                label: "Type",
+                label: t("columns.type"),
                 width: "20%",
-                render: (r) => <Badge variant="default">{r.constraint_type}</Badge>,
+                render: (r) => <Badge variant="default">{t(`constraint_type.${r.constraint_type}`, r.constraint_type)}</Badge>,
               },
               {
                 key: "params",
-                label: "Détail",
+                label: t("columns.detail"),
                 render: (r) => <span className="text-sm">{describe(r)}</span>,
               },
               {
                 key: "origin",
-                label: "Origine",
+                label: t("columns.origin"),
                 render: (r) => <span className="text-xs text-slate-500">{r.origin_description ?? r.origin_role}</span>,
               },
             ]}

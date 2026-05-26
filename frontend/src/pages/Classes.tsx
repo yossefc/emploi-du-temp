@@ -95,17 +95,17 @@ export default function Classes() {
             onDelete={(row) => remove.mutate(row.id)}
             deletingId={remove.isPending ? (remove.variables as number) : null}
             columns={[
-              { key: "code", label: "Code", width: "15%" },
-              { key: "name", label: "Nom / שם" },
+              { key: "code", label: t("columns.code"), width: "15%" },
+              { key: "name", label: t("columns.name") },
               {
                 key: "grade",
-                label: t("nav.grades"),
+                label: t("columns.grade"),
                 render: (r) => {
                   const g = grades?.find((x) => x.id === r.grade_id);
-                  return <Badge variant="info">{g?.code ?? `#${r.grade_id}`}</Badge>;
+                  return <Badge variant="info">{g?.name ?? g?.code ?? `#${r.grade_id}`}</Badge>;
                 },
               },
-              { key: "student_count", label: "תלמידים / Élèves", width: "15%" },
+              { key: "student_count", label: t("columns.students"), width: "15%" },
             ]}
           />
         </CardBody>

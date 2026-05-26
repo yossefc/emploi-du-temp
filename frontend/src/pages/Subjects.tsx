@@ -100,9 +100,15 @@ export default function Subjects() {
                   />
                 ),
               },
-              { key: "code", label: "Code", width: "15%" },
-              { key: "name_fr", label: "Nom FR" },
-              { key: "name_he", label: "שם" },
+              { key: "code", label: t("columns.code"), width: "15%" },
+              ...(t("common.language.he", { lng: "he" }) && false ? [] : []),
+              // En HE on n'affiche que le nom hébreu
+              ...(typeof window !== "undefined" && document.documentElement.lang === "he"
+                ? [{ key: "name_he", label: t("columns.name") }]
+                : [
+                    { key: "name_fr", label: "Nom FR" },
+                    { key: "name_he", label: "שם" },
+                  ]),
             ]}
           />
         </CardBody>

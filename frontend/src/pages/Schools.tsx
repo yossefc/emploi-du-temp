@@ -91,13 +91,13 @@ export default function Schools() {
                       onClick={() => setCurrentId(r.id)}
                       className="text-xs text-primary-600 hover:underline"
                     >
-                      בחר
+                      {t("actions.select_current")}
                     </button>
                   ),
               },
-              { key: "code", label: "Code", width: "20%" },
-              { key: "name", label: "Nom / שם" },
-              { key: "default_language", label: "Lang", width: "10%" },
+              { key: "code", label: t("columns.code"), width: "20%" },
+              { key: "name", label: t("columns.name") },
+              { key: "default_language", label: t("columns.language_default"), width: "10%" },
             ]}
           />
         </CardBody>

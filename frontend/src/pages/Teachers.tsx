@@ -106,12 +106,12 @@ export default function Teachers() {
             onDelete={(row) => remove.mutate(row.id)}
             deletingId={remove.isPending ? (remove.variables as number) : null}
             columns={[
-              { key: "code", label: "Code", width: "12%" },
-              { key: "name", label: "שם / Nom", render: (r) => `${r.first_name} ${r.last_name}` },
-              { key: "email", label: "Email", render: (r) => r.email ?? "—" },
+              { key: "code", label: t("columns.code"), width: "12%" },
+              { key: "name", label: t("columns.name"), render: (r) => `${r.first_name} ${r.last_name}` },
+              { key: "email", label: t("columns.email"), render: (r) => r.email ?? "—" },
               {
                 key: "languages",
-                label: "שפות / Langues",
+                label: t("columns.languages"),
                 render: (r) => (
                   <div className="flex gap-1 flex-wrap">
                     {(r.languages ?? []).map((l) => (
@@ -122,14 +122,14 @@ export default function Teachers() {
               },
               {
                 key: "subjects",
-                label: "מקצועות / Matières",
+                label: t("columns.subjects"),
                 render: (r) => (
                   <div className="flex gap-1 flex-wrap">
                     {r.qualified_subject_ids.map((id) => {
                       const s = subjects?.find((x) => x.id === id);
                       return (
                         <Badge key={id} variant="default">
-                          {s?.code ?? `#${id}`}
+                          {s?.name_he ?? s?.code ?? `#${id}`}
                         </Badge>
                       );
                     })}

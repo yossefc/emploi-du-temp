@@ -130,7 +130,7 @@ export function ConflictDialog({
                               {pickText(c.title_he, c.title_fr)}
                             </span>
                             <Badge variant="info">#{c.constraint_id}</Badge>
-                            <Badge variant="default">{c.constraint_type}</Badge>
+                            <Badge variant="default">{t(`constraint_type.${c.constraint_type}`, c.constraint_type)}</Badge>
                           </div>
                           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                             {pickText(c.detail_he, c.detail_fr)}
@@ -209,7 +209,7 @@ export function ConflictDialog({
                         <span className="font-medium text-slate-900 dark:text-slate-100">
                           {pickText(c.title_he, c.title_fr)}
                         </span>
-                        <Badge variant="default">{c.constraint_type}</Badge>
+                        <Badge variant="default">{t(`constraint_type.${c.constraint_type}`, c.constraint_type)}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                         {pickText(c.detail_he, c.detail_fr)}
