@@ -19,6 +19,7 @@ import { Modal, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { DataList } from "@/components/ui/DataList";
+import { MultiSelect } from "@/components/ui/MultiSelect";
 import { useCurrentSchool } from "@/components/layout/SchoolContext";
 
 
@@ -28,6 +29,7 @@ type ConstraintType =
   | "block_slot_room"
   | "group_hours_per_week"
   | "teacher_max_hours_week"
+  | "teachers_must_teach_together"
   | "other";
 
 
@@ -80,6 +82,7 @@ export default function Constraints() {
   const [maxHours, setMaxHours] = useState(24);
   const [hours, setHours] = useState(2);
   const [groupId, setGroupId] = useState<number | "">("");
+  const [togetherTeacherIds, setTogetherTeacherIds] = useState<number[]>([]);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -102,6 +105,9 @@ export default function Constraints() {
       } else if (ctype === "teacher_max_hours_week") {
         if (!blockTarget) throw new Error("Prof requis");
         parameters = { teacher_id: blockTarget, max_hours: maxHours };
+      } else if (ctype === "teachers_must_teach_together") {
+        if (togetherTeacherIds.length < 2) throw new Error("Au moins 2 profs requis");
+        parameters = { teacher_ids: togetherTeacherIds };
       }
 
       return api.constraints.create({
@@ -123,6 +129,7 @@ export default function Constraints() {
       setModalOpen(false);
       setBlockTarget(""); setBlockDays(new Set([1])); setBlockSlots(new Set([0]));
       setMaxHours(24); setHours(2); setGroupId("");
+      setTogetherTeacherIds([]);
       setOriginDescription("");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -166,6 +173,15 @@ export default function Constraints() {
     if (c.constraint_type === "teacher_max_hours_week") {
       const t = teachers?.find((x) => x.id === p.teacher_id);
       return `${t ? `${t.first_name} ${t.last_name}` : `#${p.teacher_id}`} ≤ ${p.max_hours}h/sem`;
+    }
+    if (c.constraint_type === "teachers_must_teach_together") {
+      const names = (p.teacher_ids ?? [])
+        .map((id: number) => {
+          const t = teachers?.find((x) => x.id === id);
+          return t ? `${t.first_name} ${t.last_name}` : `#${id}`;
+        })
+        .join(" + ");
+      return names || "—";
     }
     return JSON.stringify(p);
   }
@@ -267,6 +283,7 @@ export default function Constraints() {
                 { value: "block_slot_room", label: "חדר לא זמין / Salle indispo" },
                 { value: "group_hours_per_week", label: "נפח שעות קבוצה / Volume groupe" },
                 { value: "teacher_max_hours_week", label: "תקרה שבועית למורה / Plafond prof/sem" },
+                { value: "teachers_must_teach_together", label: "מורים מלמדים יחד / Profs enseignent ensemble" },
               ]}
             />
 
@@ -366,6 +383,25 @@ export default function Constraints() {
                     className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   />
                 </div>
+              </>
+            )}
+
+            {ctype === "teachers_must_teach_together" && (
+              <>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  בחר 2 או יותר מורים שחייבים ללמד באותם זמני שעות. שימושי לתפילה
+                  בבוקר (שני מורים יחד), קו-טיטולריות, או פיקוח משותף.
+                </p>
+                <MultiSelect
+                  label={t("nav.teachers") + " *"}
+                  options={(teachers ?? []).map((t) => ({
+                    value: t.id,
+                    label: `${t.code} — ${t.first_name} ${t.last_name}`,
+                  }))}
+                  selected={togetherTeacherIds}
+                  onChange={setTogetherTeacherIds}
+                  placeholder="בחר לפחות 2 מורים"
+                />
               </>
             )}
 

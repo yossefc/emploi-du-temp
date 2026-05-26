@@ -1,9 +1,11 @@
 /**
- * Composants d'étape du wizard. Chacun reçoit le contexte du wizard
- * (donnée accumulée + handlers) et rend son formulaire.
+ * Composants d'étape du wizard. Chaque sous-composant utilise useTranslation
+ * pour afficher tous les labels selon la langue active (HE/FR).
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -33,28 +35,29 @@ export function StepSchool({
   value: SchoolForm;
   onChange: (v: SchoolForm) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <Input
-        label="Nom de l'école *"
+        label={t("wizard.school_name")}
         value={value.name}
         onChange={(e) => onChange({ ...value, name: e.target.value })}
-        placeholder="AMIT Bar Ilan Netanya"
+        placeholder="אמי״ת בר אילן נתניה"
       />
       <Input
-        label="Code court *"
+        label={t("wizard.school_code")}
         value={value.code}
         onChange={(e) => onChange({ ...value, code: e.target.value.toLowerCase() })}
         placeholder="amit-netanya"
-        hint="Identifiant unique en URL-friendly (kebab-case)"
+        hint={t("wizard.school_code_hint")}
       />
       <Select
-        label="Langue par défaut"
+        label={t("wizard.lang_default")}
         value={value.default_language}
         onChange={(e) => onChange({ ...value, default_language: e.target.value })}
         options={[
-          { value: "fr", label: "Français" },
           { value: "he", label: "עברית" },
+          { value: "fr", label: "Français" },
         ]}
       />
     </div>
@@ -71,6 +74,12 @@ export function StepTimeGrid({
   slots: TimeSlotInput[];
   onChange: (s: TimeSlotInput[]) => void;
 }) {
+  const { t, i18n } = useTranslation();
+  const isHe = i18n.language === "he";
+  const dayLabels = isHe
+    ? ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"]
+    : ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
   const [days, setDays] = useState(() => {
     if (slots.length === 0) return 5;
     return new Set(slots.map((s) => s.day_of_week)).size;
@@ -108,7 +117,7 @@ export function StepTimeGrid({
           type="number"
           min={1}
           max={7}
-          label="Jours actifs (Dim → ...)"
+          label={t("wizard.days_active")}
           value={days}
           onChange={(e) => setDays(Math.max(1, Math.min(7, Number(e.target.value))))}
         />
@@ -116,7 +125,7 @@ export function StepTimeGrid({
           type="number"
           min={1}
           max={15}
-          label="Créneaux par jour"
+          label={t("wizard.slots_per_day")}
           value={slotsPerDay}
           onChange={(e) =>
             setSlotsPerDay(Math.max(1, Math.min(15, Number(e.target.value))))
@@ -124,13 +133,13 @@ export function StepTimeGrid({
         />
         <Input
           type="time"
-          label="Heure de début"
+          label={t("wizard.first_hour")}
           value={firstHour}
           onChange={(e) => setFirstHour(e.target.value)}
         />
       </div>
       <Button variant="secondary" onClick={regenerate} type="button">
-        Générer la grille ({days} jours × {slotsPerDay} créneaux = {days * slotsPerDay})
+        {t("wizard.generate_grid", { days, slots: slotsPerDay, total: days * slotsPerDay })}
       </Button>
 
       {slots.length > 0 && (
@@ -138,10 +147,10 @@ export function StepTimeGrid({
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-900/50">
               <tr>
-                <th className="px-3 py-2 text-left">#</th>
+                <th className="px-3 py-2 text-start">#</th>
                 {Array.from({ length: days }, (_, d) => (
-                  <th key={d} className="px-3 py-2 text-left">
-                    {["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"][d]}
+                  <th key={d} className="px-3 py-2 text-start">
+                    {dayLabels[d]}
                   </th>
                 ))}
               </tr>
@@ -195,16 +204,17 @@ export function RowsEditor<T extends { _id?: string }>({
   onChange,
   emptyRow,
   columns,
-  addLabel = "+ Ajouter",
+  addLabel,
 }: RowEditorProps<T>) {
+  const { t } = useTranslation();
+  const label = addLabel ?? `+ ${t("actions.create")}`;
+
   const updateRow = (idx: number, patch: Partial<T>) => {
     const next = [...rows];
     next[idx] = { ...next[idx], ...patch };
     onChange(next);
   };
-  const removeRow = (idx: number) => {
-    onChange(rows.filter((_, i) => i !== idx));
-  };
+  const removeRow = (idx: number) => onChange(rows.filter((_, i) => i !== idx));
   const addRow = () => onChange([...rows, { ...emptyRow(), _id: crypto.randomUUID() }]);
 
   return (
@@ -214,7 +224,7 @@ export function RowsEditor<T extends { _id?: string }>({
           <thead className="bg-slate-50 dark:bg-slate-900/50">
             <tr>
               {columns.map((c) => (
-                <th key={String(c.key)} className="px-3 py-2 text-left font-medium" style={c.width ? { width: c.width } : undefined}>
+                <th key={String(c.key)} className="px-3 py-2 text-start font-medium" style={c.width ? { width: c.width } : undefined}>
                   {c.label}
                 </th>
               ))}
@@ -225,7 +235,7 @@ export function RowsEditor<T extends { _id?: string }>({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 1} className="px-3 py-6 text-center text-slate-500">
-                  Aucune ligne. Cliquez sur "{addLabel}" pour commencer.
+                  {t("wizard.cell_no_rows", { add_label: label })}
                 </td>
               </tr>
             )}
@@ -267,7 +277,7 @@ export function RowsEditor<T extends { _id?: string }>({
                     type="button"
                     onClick={() => removeRow(idx)}
                     className="text-red-500 hover:text-red-700 text-lg"
-                    aria-label="Supprimer"
+                    aria-label={t("wizard.delete_row")}
                   >
                     ×
                   </button>
@@ -278,7 +288,7 @@ export function RowsEditor<T extends { _id?: string }>({
         </table>
       </div>
       <Button variant="secondary" size="sm" onClick={addRow} type="button">
-        {addLabel}
+        {label}
       </Button>
     </div>
   );
@@ -302,23 +312,24 @@ export function StepGrades({
   rows: GradeRow[];
   onChange: (r: GradeRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowsEditor
       rows={rows}
       onChange={onChange}
       emptyRow={() => ({ code: "", name: "", order: 7, grouping_policy: "class_centric" as GP })}
-      addLabel="+ Ajouter un niveau"
+      addLabel={t("wizard.add_grade")}
       columns={[
-        { key: "code", label: "Code", width: "20%" },
-        { key: "name", label: "Nom" },
-        { key: "order", label: "Ordre", type: "number", width: "15%" },
+        { key: "code", label: t("columns.code"), width: "20%" },
+        { key: "name", label: t("columns.name") },
+        { key: "order", label: t("wizard.grade_order"), type: "number", width: "15%" },
         {
           key: "grouping_policy",
-          label: "Politique",
+          label: t("wizard.grade_policy"),
           type: "select",
           options: [
-            { value: "class_centric", label: "Par classe" },
-            { value: "group_centric", label: "Par groupe" },
+            { value: "class_centric", label: t("wizard.grade_policy_class") },
+            { value: "group_centric", label: t("wizard.grade_policy_group") },
           ],
         },
       ]}
@@ -334,7 +345,7 @@ export interface ClassRow {
   code: string;
   name: string;
   student_count: number;
-  grade_id: number | string; // string venant du <select>, converti à l'envoi
+  grade_id: number | string;
 }
 
 export function StepClasses({
@@ -346,19 +357,20 @@ export function StepClasses({
   grades: Grade[];
   onChange: (r: ClassRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowsEditor
       rows={rows}
       onChange={onChange}
       emptyRow={() => ({ code: "", name: "", student_count: 25, grade_id: "" })}
-      addLabel="+ Ajouter une classe"
+      addLabel={t("wizard.add_class")}
       columns={[
-        { key: "code", label: "Code (ex: 7-1)" },
-        { key: "name", label: "Nom" },
-        { key: "student_count", label: "Élèves", type: "number", width: "15%" },
+        { key: "code", label: t("columns.code") + " (ex: " + t("wizard.class_code_hint") + ")" },
+        { key: "name", label: t("columns.name") },
+        { key: "student_count", label: t("columns.students"), type: "number", width: "15%" },
         {
           key: "grade_id",
-          label: "Niveau",
+          label: t("columns.grade"),
           type: "select",
           options: [
             { value: "", label: "—" },
@@ -389,18 +401,19 @@ export function StepSubjects({
   rows: SubjectRow[];
   onChange: (r: SubjectRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowsEditor
       rows={rows}
       onChange={onChange}
       emptyRow={() => ({ code: "", name_fr: "", name_he: "", color_hex: "", required_room_type: "" })}
-      addLabel="+ Ajouter une matière"
+      addLabel={t("wizard.add_subject")}
       columns={[
-        { key: "code", label: "Code", width: "15%" },
+        { key: "code", label: t("columns.code"), width: "15%" },
+        { key: "name_he", label: "שם" },
         { key: "name_fr", label: "Nom FR" },
-        { key: "name_he", label: "Nom HE" },
-        { key: "color_hex", label: "Couleur (#hex)", width: "15%" },
-        { key: "required_room_type", label: "Salle requise", width: "15%" },
+        { key: "color_hex", label: t("wizard.subject_color"), width: "15%" },
+        { key: "required_room_type", label: t("wizard.subject_required_room"), width: "15%" },
       ]}
     />
   );
@@ -428,32 +441,28 @@ export function StepTeachers({
   subjects: Subject[];
   onChange: (r: TeacherRow[]) => void;
 }) {
+  const { t } = useTranslation();
+  const codes = subjects.map((s) => s.code).join(", ") || "—";
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        <strong>Langues</strong> : liste séparée par virgules (ex: <code>fr,he</code>).{" "}
-        <strong>Matières</strong> : codes séparés par virgules parmi{" "}
-        {subjects.map((s) => s.code).join(", ") || "(aucune définie à l'étape précédente)"}.
+        {t("wizard.teacher_help", { codes })}
       </p>
       <RowsEditor
         rows={rows}
         onChange={onChange}
         emptyRow={() => ({
-          code: "",
-          first_name: "",
-          last_name: "",
-          email: "",
-          languages: "fr,he",
-          qualified_subject_codes: "",
+          code: "", first_name: "", last_name: "", email: "",
+          languages: "fr,he", qualified_subject_codes: "",
         })}
-        addLabel="+ Ajouter un prof"
+        addLabel={t("wizard.add_teacher")}
         columns={[
-          { key: "code", label: "Code", width: "12%" },
-          { key: "first_name", label: "Prénom" },
-          { key: "last_name", label: "Nom" },
-          { key: "email", label: "Email" },
-          { key: "languages", label: "Langues", width: "12%" },
-          { key: "qualified_subject_codes", label: "Matières (codes)", width: "20%" },
+          { key: "code", label: t("columns.code"), width: "12%" },
+          { key: "first_name", label: t("wizard.teacher_first_name") },
+          { key: "last_name", label: t("wizard.teacher_last_name") },
+          { key: "email", label: t("columns.email") },
+          { key: "languages", label: t("wizard.teacher_languages"), width: "12%" },
+          { key: "qualified_subject_codes", label: t("wizard.teacher_subjects"), width: "20%" },
         ]}
       />
     </div>
@@ -478,17 +487,18 @@ export function StepRooms({
   rows: RoomRow[];
   onChange: (r: RoomRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowsEditor
       rows={rows}
       onChange={onChange}
       emptyRow={() => ({ code: "", name: "", capacity: 30, room_type: "" })}
-      addLabel="+ Ajouter une salle"
+      addLabel={t("wizard.add_room")}
       columns={[
-        { key: "code", label: "Code", width: "20%" },
-        { key: "name", label: "Nom" },
-        { key: "capacity", label: "Capacité", type: "number", width: "15%" },
-        { key: "room_type", label: "Type", width: "20%" },
+        { key: "code", label: t("columns.code"), width: "20%" },
+        { key: "name", label: t("columns.name") },
+        { key: "capacity", label: t("wizard.room_capacity"), type: "number", width: "15%" },
+        { key: "room_type", label: t("columns.type"), width: "20%" },
       ]}
     />
   );
@@ -523,69 +533,48 @@ export function StepGroups({
   classes: SchoolClass[];
   onChange: (r: GroupRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        Un Group = un cours réel placé dans la grille (matière × prof(s) × classe(s)).{" "}
-        <strong>Profs / classes</strong> : codes séparés par virgules. Pour une{" "}
-        <strong>barrette</strong> (math 5/3 yehidot), créez 2+ Groups avec les mêmes
-        source_classes et même grade.
-      </p>
+      <p className="text-sm text-slate-600 dark:text-slate-400">{t("wizard.group_help")}</p>
       <RowsEditor
         rows={rows}
         onChange={onChange}
         emptyRow={() => ({
-          label: "",
-          grade_id: "",
-          subject_code: subjects[0]?.code ?? "",
-          hours_per_week: 2,
-          group_type: "whole_class" as GT,
-          teacher_codes: "",
-          source_class_codes: "",
+          label: "", grade_id: "", subject_code: subjects[0]?.code ?? "",
+          hours_per_week: 2, group_type: "whole_class" as GT,
+          teacher_codes: "", source_class_codes: "",
         })}
-        addLabel="+ Ajouter un groupe"
+        addLabel={t("wizard.add_group")}
         columns={[
-          { key: "label", label: "Libellé" },
+          { key: "label", label: t("wizard.group_label") },
           {
-            key: "grade_id",
-            label: "Niveau",
-            type: "select",
-            options: [
-              { value: "", label: "—" },
-              ...grades.map((g) => ({ value: g.id, label: g.code })),
-            ],
-            width: "10%",
+            key: "grade_id", label: t("columns.grade"), type: "select", width: "10%",
+            options: [{ value: "", label: "—" }, ...grades.map((g) => ({ value: g.id, label: g.code }))],
           },
           {
-            key: "subject_code",
-            label: "Matière",
-            type: "select",
+            key: "subject_code", label: t("nav.subjects"), type: "select", width: "12%",
             options: subjects.map((s) => ({ value: s.code, label: s.code })),
-            width: "12%",
           },
-          { key: "teacher_codes", label: "Profs (codes)", width: "15%" },
-          { key: "source_class_codes", label: "Classes (codes)", width: "15%" },
-          { key: "hours_per_week", label: "h/sem", type: "number", width: "10%" },
+          { key: "teacher_codes", label: t("wizard.group_teachers"), width: "15%" },
+          { key: "source_class_codes", label: t("wizard.group_classes"), width: "15%" },
+          { key: "hours_per_week", label: t("wizard.group_hours"), type: "number", width: "10%" },
           {
-            key: "group_type",
-            label: "Type",
-            type: "select",
+            key: "group_type", label: t("columns.type"), type: "select", width: "15%",
             options: [
-              { value: "whole_class", label: "Classe entière" },
-              { value: "level_group", label: "Niveau" },
-              { value: "option_group", label: "Option" },
-              { value: "gender_group", label: "Genre" },
-              { value: "split_group", label: "Dédoublement" },
+              { value: "whole_class", label: t("group_type.whole_class") },
+              { value: "level_group", label: t("group_type.level_group") },
+              { value: "option_group", label: t("group_type.option_group") },
+              { value: "gender_group", label: t("group_type.gender_group") },
+              { value: "split_group", label: t("group_type.split_group") },
             ],
-            width: "15%",
           },
         ]}
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Profs disponibles :{" "}
-        {teachers.map((t) => `${t.code}`).join(", ") || "(aucun)"}.<br />
-        Classes disponibles :{" "}
-        {classes.map((c) => c.code).join(", ") || "(aucune)"}.
+        {t("wizard.available_teachers", { names: teachers.map((t) => t.code).join(", ") || "—" })}
+        <br />
+        {t("wizard.available_classes", { names: classes.map((c) => c.code).join(", ") || "—" })}
       </p>
     </div>
   );

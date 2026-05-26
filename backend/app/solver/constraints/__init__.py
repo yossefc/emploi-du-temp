@@ -15,6 +15,7 @@ from app.solver.constraints.assignment import (
     TeacherLanguageRequiredConstraint,
     TeacherQualifiedForSubjectConstraint,
 )
+from app.solver.constraints.teaching import TeachersMustTeachTogetherConstraint
 from app.solver.constraints.barrette import ExtraHoursAtDayEdgeConstraint
 from app.solver.constraints.base import BaseConstraint, ConstraintExplanation
 from app.solver.constraints.block_slot import (
@@ -73,6 +74,7 @@ CONSTRAINT_REGISTRY: dict[str, type[BaseConstraint]] = {
     # Affectation
     ConstraintType.TEACHER_QUALIFIED_FOR_SUBJECT.value: TeacherQualifiedForSubjectConstraint,
     ConstraintType.TEACHER_LANGUAGE_REQUIRED.value: TeacherLanguageRequiredConstraint,
+    ConstraintType.TEACHERS_MUST_TEACH_TOGETHER.value: TeachersMustTeachTogetherConstraint,
     # Barrette
     ConstraintType.EXTRA_HOURS_AT_DAY_EDGE.value: ExtraHoursAtDayEdgeConstraint,
 }

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
 import { api, ApiError } from "@/lib/api";
@@ -50,14 +51,21 @@ const STEPS: WizardStep[] = [
 
 
 export default function Wizard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  // Traduire labels du stepper selon i18n
+  const localizedSteps: WizardStep[] = STEPS.map(s => ({
+    id: s.id,
+    label: t(`wizard.steps.${s.id.replace("-", "_")}`),
+  }));
 
   // État global accumulé
   const [step, setStep] = useState(0);
   const [school, setSchool] = useState({
     id: null as number | null,
-    form: { code: "", name: "", default_language: "fr" } as SchoolForm,
+    form: { code: "", name: "", default_language: "he" } as SchoolForm,
   });
   const [timeSlots, setTimeSlots] = useState<TimeSlotInput[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
@@ -247,19 +255,19 @@ export default function Wizard() {
       qc.invalidateQueries({ queryKey: ["schools"] });
       if (step < STEPS.length - 1) {
         setStep(step + 1);
-        toast.success("Étape validée ✓");
+        toast.success("✓");
       } else {
-        toast.success("École configurée ! 🎉");
+        toast.success("🎉");
         navigate("/");
       }
     },
     onError: (err: unknown) => {
       const msg = err instanceof ApiError ? err.message : String(err);
-      toast.error(`Erreur : ${msg}`);
+      toast.error(msg);
     },
   });
 
-  const nextLabel = step === STEPS.length - 1 ? "Terminer 🎉" : "Suivant";
+  const nextLabel = step === STEPS.length - 1 ? `${t("actions.finish")} 🎉` : t("actions.next");
 
   function renderStep() {
     switch (STEPS[step].id) {
@@ -302,11 +310,11 @@ export default function Wizard() {
 
   return (
     <WizardLayout
-      title={`Étape ${step + 1}/${STEPS.length} — ${STEPS[step].label}`}
+      title={t("wizard.step_label", { current: step + 1, total: STEPS.length, label: t(`wizard.steps.${STEPS[step].id.replace("-", "_")}`) })}
       subtitle={
-        school.form.name ? `École : ${school.form.name}` : "Configurez votre école pas à pas."
+        school.form.name ? t("wizard.school_for", { name: school.form.name }) : t("wizard.subtitle")
       }
-      steps={STEPS}
+      steps={localizedSteps}
       currentIndex={step}
       onPrev={step > 0 ? () => setStep(step - 1) : undefined}
       onNext={() => saveStep.mutate()}
