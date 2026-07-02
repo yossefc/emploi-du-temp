@@ -130,9 +130,11 @@ class TestEngineSuccess:
         # Vérifier les ScheduleEntry persistées
         entries = db_session.query(ScheduleEntry).filter_by(schedule_id=result.schedule_id).all()
         assert len(entries) == 4
-        # Chaque entry doit avoir une salle assignée
         for e in entries:
-            assert e.room_id is not None
+            # Matière sans required_room_type → cours en salle de classe
+            # (כיתת אם) → room_id NULL. Seules les matières à salle spéciale
+            # (labo, gym) reçoivent une salle du solveur.
+            assert e.room_id is None
             assert e.day_of_week in range(5)
             assert e.slot_index in range(4)
 
@@ -398,3 +400,83 @@ class TestMultiTenant:
         a_group_ids = {g.id for g in db_session.query(Group).filter_by(school_id=env_a["school"].id)}
         for e in entries:
             assert e.group_id in a_group_ids
+
+
+# ---------------------------------------------------------------------------
+# Objectifs qualité (école israélienne)
+# ---------------------------------------------------------------------------
+
+class TestQualityObjectives:
+    def test_class_compactness_no_gaps(self, db_session):
+        """2 cours d'1h pour la même classe, 1 jour de 4 créneaux → l'objectif
+        de compacité doit les placer sur des créneaux ADJACENTS (pas de חלון)."""
+        env = setup_minimal_school(db_session, days=1, slots_per_day=4)
+        env["classes"] = env["classes"][:1]
+        cls = env["classes"][0]
+
+        for i in range(2):
+            g = Group(
+                school_id=env["school"].id, grade_id=env["grade"].id,
+                subject_id=env["subject"].id,
+                label=f"Cours {i}", hours_per_week=1,
+                group_type=GroupType.WHOLE_CLASS,
+            )
+            g.teachers.append(env["teachers"][i])
+            g.source_classes.append(cls)
+            db_session.add(g)
+        db_session.commit()
+
+        result = TimetableEngine(db_session, env["school"].id).generate(max_time_seconds=10)
+        assert isinstance(result, SolveSuccess)
+
+        entries = db_session.query(ScheduleEntry).filter_by(schedule_id=result.schedule_id).all()
+        slots = sorted(e.slot_index for e in entries)
+        assert len(slots) == 2
+        assert slots[1] - slots[0] == 1, \
+            f"Compacité violée : créneaux {slots} devraient être adjacents"
+
+    def test_subject_spread_over_days(self, db_session):
+        """Un group de 2h avec 2 jours disponibles → l'étalement doit répartir
+        1h par jour (pas 2h le même jour)."""
+        env = setup_minimal_school(db_session, days=2, slots_per_day=3)
+        env["classes"] = env["classes"][:1]
+        env["teachers"] = env["teachers"][:1]
+        add_simple_groups(db_session, env, hours=2)
+
+        result = TimetableEngine(db_session, env["school"].id).generate(max_time_seconds=10)
+        assert isinstance(result, SolveSuccess)
+
+        entries = db_session.query(ScheduleEntry).filter_by(schedule_id=result.schedule_id).all()
+        days = sorted(e.day_of_week for e in entries)
+        assert days == [0, 1], f"Étalement violé : les 2h sont sur les jours {days}"
+
+    def test_special_room_still_assigned(self, db_session):
+        """Une matière avec required_room_type doit recevoir une salle du bon type."""
+        env = setup_minimal_school(db_session, days=2, slots_per_day=3)
+        lab = Room(school_id=env["school"].id, code="LAB", name="Labo",
+                   capacity=24, room_type="lab")
+        db_session.add(lab)
+        subj_sci = Subject(school_id=env["school"].id, code="SCI",
+                            name_fr="Sciences", name_he="מדעים",
+                            required_room_type="lab")
+        db_session.add(subj_sci)
+        db_session.flush()
+
+        g = Group(
+            school_id=env["school"].id, grade_id=env["grade"].id,
+            subject_id=subj_sci.id, label="Sciences",
+            hours_per_week=2, group_type=GroupType.WHOLE_CLASS,
+        )
+        g.teachers.append(env["teachers"][0])
+        g.source_classes.append(env["classes"][0])
+        db_session.add(g)
+        db_session.commit()
+        db_session.refresh(lab)
+
+        result = TimetableEngine(db_session, env["school"].id).generate(max_time_seconds=10)
+        assert isinstance(result, SolveSuccess)
+
+        entries = db_session.query(ScheduleEntry).filter_by(schedule_id=result.schedule_id).all()
+        assert len(entries) == 2
+        for e in entries:
+            assert e.room_id == lab.id, "La matière labo doit être dans le labo"

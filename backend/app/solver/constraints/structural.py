@@ -36,8 +36,10 @@ class TeacherNoOverlapConstraint(_StructuralConstraint):
             if len(group_ids) < 2:
                 continue
             for day, slot in ctx.all_active_positions():
-                vars_ = [ctx.assigned[g_id][(day, slot)] for g_id in group_ids]
-                ctx.model.Add(sum(vars_) <= 1)
+                # AddAtMostOne : propagateur dédié, bien plus efficace que sum()<=1
+                ctx.model.AddAtMostOne(
+                    ctx.assigned[g_id][(day, slot)] for g_id in group_ids
+                )
 
     def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
@@ -74,9 +76,13 @@ class ClassNoOverlapConstraint(_StructuralConstraint):
                     if cohort_id is None:
                         reps.extend(ctx.assigned[g][(day, slot)] for g in gs)
                     else:
-                        reps.append(ctx.assigned[gs[0]][(day, slot)])
+                        # Représentant = le group ENVELOPPE (max hours) : avec la
+                        # sémantique subset, si la cohorte tourne à ce créneau,
+                        # c'est lui qui est actif.
+                        g_env = max(gs, key=lambda gid: ctx.group(gid).hours_per_week)
+                        reps.append(ctx.assigned[g_env][(day, slot)])
                 if len(reps) >= 2:
-                    ctx.model.Add(sum(reps) <= 1)
+                    ctx.model.AddAtMostOne(reps)
 
     def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
@@ -100,7 +106,7 @@ class RoomNoOverlapConstraint(_StructuralConstraint):
                     if (day, slot) in slot_map and room.id in slot_map[(day, slot)]:
                         vars_.append(slot_map[(day, slot)][room.id])
                 if len(vars_) >= 2:
-                    ctx.model.Add(sum(vars_) <= 1)
+                    ctx.model.AddAtMostOne(vars_)
 
     def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
@@ -113,24 +119,44 @@ class RoomNoOverlapConstraint(_StructuralConstraint):
 
 
 class ParallelCohortSameSlotConstraint(_StructuralConstraint):
-    """Tous les Groups d'une ParallelCohort doivent être au même créneau."""
+    """Sémantique ENVELOPPE des barrettes (הקבצות) israéliennes.
+
+    Cas réel AMIT : Math 5 yehidot (5h) + Math 4 (4h) + Math 3 (3h) dans la
+    même הקבצה. Forcer l'égalité totale rendrait le modèle infaisable
+    (5h ≠ 3h). La vraie sémantique :
+
+    - Les groups au volume MAX (l'« enveloppe ») tournent tous exactement
+      aux mêmes créneaux (égalité stricte entre eux).
+    - Les groups plus courts tournent UNIQUEMENT pendant les créneaux de
+      l'enveloppe (subset) — jamais en dehors.
+    - Les heures « en plus » de l'enveloppe (où les courts ne tournent pas)
+      sont poussées en bord de journée par EXTRA_HOURS_AT_DAY_EDGE.
+    """
     constraint_type = "parallel_cohort_same_slot"
 
     def apply(self, ctx: "SolverContext") -> None:
         for cohort in ctx.parallel_cohorts:
-            group_ids = [g.id for g in cohort.groups]
-            if len(group_ids) < 2:
+            groups = list(cohort.groups)
+            if len(groups) < 2:
                 continue
-            ref = group_ids[0]
-            for other in group_ids[1:]:
-                for day, slot in ctx.all_active_positions():
-                    ctx.model.Add(ctx.assigned[ref][(day, slot)] == ctx.assigned[other][(day, slot)])
+            max_h = max(g.hours_per_week for g in groups)
+            envelope = [g.id for g in groups if g.hours_per_week == max_h]
+            shorter = [g.id for g in groups if g.hours_per_week < max_h]
+            ref = envelope[0]
+            for pos in ctx.all_active_positions():
+                ref_var = ctx.assigned[ref][pos]
+                # Égalité stricte entre les groups enveloppe
+                for other in envelope[1:]:
+                    ctx.model.Add(ctx.assigned[other][pos] == ref_var)
+                # Les courts ne peuvent tourner QUE quand l'enveloppe tourne
+                for short in shorter:
+                    ctx.model.Add(ctx.assigned[short][pos] <= ref_var)
 
     def explain(self, ctx) -> ConstraintExplanation:
         return ConstraintExplanation(
             title_he="הקבצות מקבילות (מבני)",
             title_fr="Barrettes parallèles (structurelle)",
-            detail_he="כל קבוצות באותה הקבצה חייבות להיות באותו זמן.",
-            detail_fr="Les groupes d'une même barrette doivent être au même créneau.",
+            detail_he="קבוצות באותה הקבצה רצות באותם זמנים (הקצרות בתוך מעטפת הארוכות).",
+            detail_fr="Les groupes d'une barrette tournent ensemble (les courts dans l'enveloppe des longs).",
             origin="מערכת",
         )

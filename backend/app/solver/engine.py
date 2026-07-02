@@ -128,12 +128,23 @@ class TimetableEngine:
 
         applied = self._apply_constraints(ctx, disabled=disabled)
 
+        # Objectifs qualité automatiques (école israélienne) :
+        # - compacité élèves (pas de חלונות dans la journée d'une classe)
+        # - étalement matière (pas 2× le même cours le même jour si évitable)
+        self._apply_quality_objectives(ctx)
+
         # Objectif : minimiser la somme pondérée des pénalités SOFT
         if ctx.soft_penalty_terms:
             ctx.model.Minimize(sum(expr * weight for expr, weight in ctx.soft_penalty_terms))
 
+        # Warm start : réutiliser le dernier planning comme point de départ.
+        # Rend les re-solves du dialogue conflit quasi instantanés ET stables
+        # (le nouveau planning ressemble à l'ancien — crucial pour les humains).
+        self._add_warm_start_hints(ctx)
+
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = max_time_seconds
+        solver.parameters.num_search_workers = 8   # portefeuille parallèle CP-SAT
         status = solver.Solve(ctx.model)
         elapsed = solver.WallTime()
 
@@ -172,13 +183,24 @@ class TimetableEngine:
 
     # ---- Variables CP-SAT ----
     def _create_variables(self, ctx: SolverContext) -> None:
+        """Variables de décision.
+
+        Salles : en Israël chaque classe a sa כיתת אם (salle fixe) — l'export
+        iscool n'affiche même pas les salles. On ne crée donc des variables de
+        salle QUE pour les matières exigeant un type spécial (labo, gym…).
+        Les autres cours héritent implicitement de la salle de classe
+        (room_id NULL dans ScheduleEntry). Sur AMIT ça élimine ~450 000
+        variables du modèle.
+        """
         positions = ctx.all_active_positions()
         for g in ctx.groups:
             ctx.assigned[g.id] = {}
             for (d, s) in positions:
                 ctx.assigned[g.id][(d, s)] = ctx.model.NewBoolVar(f"x_g{g.id}_d{d}_s{s}")
 
-            # Variables d'assignation de salle (uniquement pour salles compatibles)
+            # Variables de salle : seulement si la matière exige un type spécial
+            if not g.subject.required_room_type:
+                continue
             compatible = ctx.compatible_rooms(g.id)
             if compatible:
                 ctx.room_used[g.id] = {}
@@ -192,6 +214,108 @@ class TimetableEngine:
                         sum(ctx.room_used[g.id][(d, s)].values())
                         == ctx.assigned[g.id][(d, s)]
                     )
+
+    # ---- Objectifs qualité (école israélienne) ----
+    def _apply_quality_objectives(self, ctx: SolverContext) -> None:
+        """Ajoute les pénalités SOFT toujours actives qui font la différence
+        entre un planning « légal » et un planning utilisable :
+
+        1. Compacité classe (אין חלונות) : un créneau vide entre deux cours
+           d'une même classe le même jour coûte cher (poids 40). En Israël un
+           élève ne peut pas rester sans cours au milieu de la journée.
+        2. Étalement matière : le même group 2× le même jour coûte (poids 8)
+           — un cours de 4h/sem doit s'étaler sur 4 jours, pas 2. Si une
+           contrainte HARD subject_consecutive_hours existe, elle gagne
+           (la pénalité devient un coût constant sans effet sur l'optimum).
+        """
+        WEIGHT_GAP = 40
+        WEIGHT_DOUBLE = 8
+
+        # --- 1. Compacité par classe ---
+        for cls in ctx.classes:
+            group_ids = ctx.groups_of_class(cls.id)
+            if not group_ids:
+                continue
+            # Représentants dédupliqués par cohorte (même logique que ClassNoOverlap)
+            by_cohort: dict[int | None, list[int]] = {}
+            for g_id in group_ids:
+                g = ctx.group(g_id)
+                by_cohort.setdefault(g.parallel_cohort_id, []).append(g_id)
+
+            for day in ctx.active_days():
+                slots = ctx.active_slots(day)
+                if len(slots) < 3:
+                    continue
+                # busy[s] = OR(cours de la classe à ce créneau)
+                busy: dict[int, cp_model.IntVar] = {}
+                for s in slots:
+                    reps = []
+                    for cohort_id, gs in by_cohort.items():
+                        if cohort_id is None:
+                            reps.extend(ctx.assigned[g][(day, s)] for g in gs)
+                        else:
+                            g_env = max(gs, key=lambda gid: ctx.group(gid).hours_per_week)
+                            reps.append(ctx.assigned[g_env][(day, s)])
+                    b = ctx.model.NewBoolVar(f"busy_c{cls.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(b, reps)
+                    busy[s] = b
+
+                # before[i] = classe a eu cours à un créneau <= i
+                # after[i]  = classe a cours à un créneau >= i
+                before: dict[int, cp_model.IntVar] = {}
+                after: dict[int, cp_model.IntVar] = {}
+                prev = None
+                for s in slots:
+                    v = ctx.model.NewBoolVar(f"bef_c{cls.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(v, [busy[s]] if prev is None else [busy[s], prev])
+                    before[s] = v
+                    prev = v
+                nxt = None
+                for s in reversed(slots):
+                    v = ctx.model.NewBoolVar(f"aft_c{cls.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(v, [busy[s]] if nxt is None else [busy[s], nxt])
+                    after[s] = v
+                    nxt = v
+
+                # gap[i] = 1 ssi cours avant ET cours après ET créneau vide
+                # (linéarisé : gap >= before[i-1] + after[i+1] - busy[i] - 1 ;
+                #  la minimisation pousse gap à 0 quand c'est permis)
+                for idx in range(1, len(slots) - 1):
+                    s = slots[idx]
+                    gap = ctx.model.NewBoolVar(f"gap_c{cls.id}_d{day}_s{s}")
+                    ctx.model.Add(
+                        gap >= before[slots[idx - 1]] + after[slots[idx + 1]] - busy[s] - 1
+                    )
+                    ctx.soft_penalty_terms.append((gap, WEIGHT_GAP))
+
+        # --- 2. Étalement matière (max 1 cours/jour par group si évitable) ---
+        n_days = len(ctx.active_days())
+        for g in ctx.groups:
+            if g.hours_per_week <= 1 or n_days == 0:
+                continue
+            for day in ctx.active_days():
+                slots = ctx.active_slots(day)
+                day_total = sum(ctx.assigned[g.id][(day, s)] for s in slots)
+                excess = ctx.model.NewIntVar(0, len(slots), f"dbl_g{g.id}_d{day}")
+                ctx.model.Add(excess >= day_total - 1)
+                ctx.soft_penalty_terms.append((excess, WEIGHT_DOUBLE))
+
+    # ---- Warm start ----
+    def _add_warm_start_hints(self, ctx: SolverContext) -> None:
+        """Indice de départ = le planning le plus récent de cette école."""
+        prev = (
+            self.db.query(Schedule)
+            .filter(Schedule.school_id == self.school_id)
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+        if prev is None:
+            return
+        entries = self.db.query(ScheduleEntry).filter_by(schedule_id=prev.id).all()
+        for e in entries:
+            var_map = ctx.assigned.get(e.group_id)
+            if var_map and (e.day_of_week, e.slot_index) in var_map:
+                ctx.model.AddHint(var_map[(e.day_of_week, e.slot_index)], 1)
 
     # ---- Application des contraintes ----
     def _apply_constraints(
@@ -283,13 +407,17 @@ class TimetableEngine:
         disabled: list[int],
         elapsed: float,
     ) -> SolveSuccess:
+        quality: dict = {"solver_time_seconds": elapsed}
+        if ctx.soft_penalty_terms:
+            # Somme pondérée des pénalités (0 = planning parfait côté SOFT)
+            quality["soft_penalty"] = int(solver.ObjectiveValue())
         sched = Schedule(
             school_id=self.school_id,
             name=schedule_name,
             status=ScheduleStatus.DRAFT,
             generated_at=datetime.now(timezone.utc),
             relaxed_constraints_report={"disabled_constraint_ids": disabled},
-            quality_score={"solver_time_seconds": elapsed},
+            quality_score=quality,
         )
         self.db.add(sched)
         self.db.flush()

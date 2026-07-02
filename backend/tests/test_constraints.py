@@ -261,8 +261,9 @@ class TestParallelCohortSameSlot:
         for d, s in ctx.all_active_positions():
             assert solver.Value(ctx.assigned[1][(d, s)]) == solver.Value(ctx.assigned[2][(d, s)])
 
-    def test_cohort_with_different_hours_infeasible(self):
-        """Si dans une cohorte g1 a 3h et g2 a 2h → infaisable (forcés égaux)."""
+    def test_cohort_with_different_hours_envelope(self):
+        """Sémantique ENVELOPPE (cas Math 5/3 yehidot) : g1 3h (enveloppe),
+        g2 2h → FAISABLE, et les créneaux de g2 sont un sous-ensemble de g1."""
         t1 = Teacher(id=1, school_id=1, code="T1", first_name="A", last_name="A", languages=["he"])
         t2 = Teacher(id=2, school_id=1, code="T2", first_name="B", last_name="B", languages=["he"])
         c1 = Class(id=1, school_id=1, grade_id=1, code="C1", name="C1", student_count=20)
@@ -281,9 +282,12 @@ class TestParallelCohortSameSlot:
         model.Add(sum(ctx.assigned[1].values()) == 3)
         model.Add(sum(ctx.assigned[2].values()) == 2)
 
-        status, _ = solve_and_get(model)
-        # Sans EXTRA_HOURS_AT_DAY_EDGE → contradiction, le cohort force égalité partout
-        assert status == cp_model.INFEASIBLE
+        status, solver = solve_and_get(model)
+        assert status in (cp_model.OPTIMAL, cp_model.FEASIBLE), \
+            "Une barrette à volumes inégaux doit être faisable (enveloppe)"
+        # Subset : g2 ne tourne jamais en dehors des créneaux de g1
+        for pos in ctx.all_active_positions():
+            assert solver.Value(ctx.assigned[2][pos]) <= solver.Value(ctx.assigned[1][pos])
 
 
 # ---------------------------------------------------------------------------
