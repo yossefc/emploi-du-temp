@@ -146,7 +146,18 @@ class TimetableEngine:
         """
         disabled = set(disabled_constraint_ids)
 
-        # Phase 1 : rapide, en dur
+        # Phase 1a : mode STRICT — les exigences absolues de l'école (aucun
+        # trou élève, aucune matière éclatée) sont des contraintes dures.
+        ctx, solver, status, _ = self._build_and_solve(
+            disabled, max_time_seconds * 0.6, use_assumptions=False, strict=True,
+        )
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            return self._save_solution(
+                ctx, solver, schedule_name, list(disabled), solver.WallTime(),
+                strict=True,
+            )
+
+        # Phase 1b : mode souple — ces exigences redeviennent des pénalités.
         ctx, solver, status, _ = self._build_and_solve(
             disabled, max_time_seconds, use_assumptions=False,
         )
@@ -177,6 +188,7 @@ class TimetableEngine:
         max_time_seconds: float,
         *,
         use_assumptions: bool,
+        strict: bool = False,
     ):
         """Construit le modèle complet et le résout. Retourne (ctx, solver, status, applied)."""
         self._literal_index_to_applied = {}
@@ -188,7 +200,7 @@ class TimetableEngine:
         )
 
         # Objectifs qualité automatiques (école israélienne)
-        self._apply_quality_objectives(ctx)
+        self._apply_quality_objectives(ctx, strict=strict)
         if ctx.soft_penalty_terms:
             ctx.model.Minimize(sum(expr * weight for expr, weight in ctx.soft_penalty_terms))
 
@@ -259,14 +271,15 @@ class TimetableEngine:
                     )
 
     # ---- Objectifs qualité (école israélienne) ----
-    def _apply_quality_objectives(self, ctx: SolverContext) -> None:
+    def _apply_quality_objectives(self, ctx: SolverContext, strict: bool = False) -> None:
         """Ajoute les pénalités SOFT toujours actives qui font la différence
         entre un planning « légal » et un planning utilisable :
 
-        1. Compacité classe (אין חלונות) : un créneau vide entre deux cours
-           d'une même classe le même jour coûte TRÈS cher (poids 100). En
-           Israël un élève ne reste pas sans cours au milieu de la journée —
-           priorité absolue demandée par l'école.
+        1. Journée d'une classe = bloc continu qui commence à P1 et va au
+           moins jusqu'à P6 (règle de l'école) :
+             - aucun trou entre deux cours              → poids 100
+             - la journée démarre bien à la 1re période → poids 90
+             - elle ne s'arrête pas avant la 6e         → poids 70
         2. Blocs de 2h (demande de l'école) : une matière présente 2× dans la
            même journée doit l'être en heures CONSÉCUTIVES, jamais éparpillée
            (1h le matin + 1h l'après-midi est interdit). Concrètement :
@@ -278,13 +291,22 @@ class TimetableEngine:
         3. Trous profs : un créneau vide entre deux cours d'un prof le même
            jour coûte (poids 6) — « pas trop de trous pour les profs », mais
            toujours subordonné à la compacité des classes.
+
+        `strict=True` : les deux exigences absolues de l'école (aucun trou
+        élève, aucune matière éclatée dans la journée) deviennent des
+        contraintes DURES au lieu de pénalités. Le solveur ne peut alors plus
+        « acheter » une violation, et l'espace de recherche se réduit
+        fortement. L'appelant retombe sur strict=False si c'est infaisable.
         """
         WEIGHT_GAP = 100
+        WEIGHT_DAY_START = 90    # classe qui ne commence pas à P1
+        WEIGHT_DAY_END = 70      # classe qui termine avant P6
         WEIGHT_SPLIT = 80        # matière éclatée dans la journée
         WEIGHT_LONG_BLOCK = 40   # plus de 2h d'affilée
-        WEIGHT_DAY_SPREAD = 15   # 1h isolée au lieu d'une paire
+        WEIGHT_DAY_SPREAD = 30   # 1h isolée au lieu d'une paire
         WEIGHT_DOUBLE = 8        # doublement des matières exemptées
         WEIGHT_TEACHER_GAP = 6
+        MIN_END_SLOT = 5         # index de P6 : la journée va au moins jusque-là
 
         # --- 1. Compacité par classe ---
         for cls in ctx.classes:
@@ -337,11 +359,36 @@ class TimetableEngine:
                 #  la minimisation pousse gap à 0 quand c'est permis)
                 for idx in range(1, len(slots) - 1):
                     s = slots[idx]
+                    if strict:
+                        # Aucun trou toléré : cours avant + cours après ⇒ occupé
+                        ctx.model.Add(
+                            before[slots[idx - 1]] + after[slots[idx + 1]] - busy[s] <= 1
+                        )
+                        continue
                     gap = ctx.model.NewBoolVar(f"gap_c{cls.id}_d{day}_s{s}")
                     ctx.model.Add(
                         gap >= before[slots[idx - 1]] + after[slots[idx + 1]] - busy[s] - 1
                     )
                     ctx.soft_penalty_terms.append((gap, WEIGHT_GAP))
+
+                # Amplitude de journée : une classe qui a cours ce jour-là
+                # commence à P1 et ne termine pas avant P6 (règle de l'école).
+                day_active = ctx.model.NewBoolVar(f"dayon_c{cls.id}_d{day}")
+                ctx.model.AddMaxEquality(day_active, list(busy.values()))
+                first_slot = slots[0]
+                last_required = slots[MIN_END_SLOT] if len(slots) > MIN_END_SLOT else None
+                if strict:
+                    ctx.model.Add(busy[first_slot] == day_active)
+                    if last_required is not None:
+                        ctx.model.Add(busy[last_required] >= day_active)
+                else:
+                    late = ctx.model.NewBoolVar(f"late_c{cls.id}_d{day}")
+                    ctx.model.Add(late >= day_active - busy[first_slot])
+                    ctx.soft_penalty_terms.append((late, WEIGHT_DAY_START))
+                    if last_required is not None:
+                        early = ctx.model.NewBoolVar(f"early_c{cls.id}_d{day}")
+                        ctx.model.Add(early >= day_active - busy[last_required])
+                        ctx.soft_penalty_terms.append((early, WEIGHT_DAY_END))
 
         # --- 2. Blocs de 2h consécutives (ou étalement pour les exemptées) ---
         days_list = ctx.active_days()
@@ -379,10 +426,13 @@ class TimetableEngine:
                         ctx.model.Add(st >= cur - prev)
                     starts.append(st)
                     prev = cur
-                # >1 début = matière éclatée dans la journée → pénalisé fort
-                split = ctx.model.NewIntVar(0, len(slots), f"bsplit_g{g.id}_d{day}")
-                ctx.model.Add(split >= sum(starts) - 1)
-                ctx.soft_penalty_terms.append((split, WEIGHT_SPLIT))
+                # >1 début = matière éclatée dans la journée
+                if strict:
+                    ctx.model.Add(sum(starts) <= 1)   # un seul bloc, point
+                else:
+                    split = ctx.model.NewIntVar(0, len(slots), f"bsplit_g{g.id}_d{day}")
+                    ctx.model.Add(split >= sum(starts) - 1)
+                    ctx.soft_penalty_terms.append((split, WEIGHT_SPLIT))
 
                 # b) Pas plus de 2h d'affilée
                 over = ctx.model.NewIntVar(0, len(slots), f"blong_g{g.id}_d{day}")
@@ -552,8 +602,9 @@ class TimetableEngine:
         schedule_name: str,
         disabled: list[int],
         elapsed: float,
+        strict: bool = False,
     ) -> SolveSuccess:
-        quality: dict = {"solver_time_seconds": elapsed}
+        quality: dict = {"solver_time_seconds": elapsed, "strict_quality": strict}
         if ctx.soft_penalty_terms:
             # Somme pondérée des pénalités (0 = planning parfait côté SOFT)
             quality["soft_penalty"] = int(solver.ObjectiveValue())
