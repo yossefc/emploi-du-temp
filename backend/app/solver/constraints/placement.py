@@ -102,6 +102,55 @@ class SubjectRequiredSlotRangeConstraint(BaseConstraint):
                    origin_description=origin_description)
 
 
+class SubjectPreferredSlotRangeConstraint(BaseConstraint):
+    """Version SOFT de SUBJECT_REQUIRED_SLOT_RANGE.
+
+    « Le mieux est de commencer la journée par מחנכים/מנטורים » : on pénalise
+    chaque heure placée hors de la fenêtre souhaitée au lieu de l'interdire.
+    Sans assumption literal → jamais responsable d'une infaisabilité.
+    """
+    constraint_type = "subject_preferred_slot_range"
+
+    def __init__(self, *, subject_id: int, min_slot: int, max_slot: int, **kwargs):
+        super().__init__(**kwargs)
+        self.subject_id = subject_id
+        self.min_slot = min_slot
+        self.max_slot = max_slot
+
+    def apply(self, ctx):
+        group_ids = [g.id for g in ctx.groups if g.subject_id == self.subject_id]
+        if not group_ids:
+            return
+        weight = self.weight or 30
+        for g_id in group_ids:
+            for (day, slot), var in ctx.assigned[g_id].items():
+                if slot < self.min_slot or slot > self.max_slot:
+                    # Plus on s'éloigne de la fenêtre, plus c'est pénalisé.
+                    distance = (
+                        self.min_slot - slot if slot < self.min_slot else slot - self.max_slot
+                    )
+                    ctx.soft_penalty_terms.append((var, weight * min(distance, 4)))
+
+    def explain(self, ctx):
+        subj = _subject_label(ctx, self.subject_id)
+        return ConstraintExplanation(
+            title_he=f"{subj} : משבצות מועדפות",
+            title_fr=f"{subj} : créneaux préférés",
+            detail_he=f"עדיף שהמקצוע יהיה בין משבצות {self.min_slot + 1} ל-{self.max_slot + 1}.",
+            detail_fr=f"Cette matière devrait être placée entre les créneaux "
+                      f"{self.min_slot + 1} et {self.max_slot + 1}.",
+            origin=self.origin_description or "מנהל",
+            suggestions=[],
+        )
+
+    @classmethod
+    def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
+        return cls(subject_id=params["subject_id"], min_slot=params["min_slot"],
+                   max_slot=params["max_slot"],
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)
+
+
 class SubjectMaxPerDayConstraint(BaseConstraint):
     constraint_type = "subject_max_per_day"
 

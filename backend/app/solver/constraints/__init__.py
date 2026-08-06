@@ -37,6 +37,7 @@ from app.solver.constraints.block_slot import (
 from app.solver.constraints.placement import (
     SubjectConsecutiveHoursConstraint,
     SubjectMaxPerDayConstraint,
+    SubjectPreferredSlotRangeConstraint,
     SubjectRequiredSlotRangeConstraint,
 )
 from app.solver.constraints.structural import (
@@ -73,6 +74,7 @@ CONSTRAINT_REGISTRY: dict[str, type[BaseConstraint]] = {
     ConstraintType.BLOCK_SLOT_ROOM.value: BlockSlotRoomConstraint,
     # Placement matière
     ConstraintType.SUBJECT_REQUIRED_SLOT_RANGE.value: SubjectRequiredSlotRangeConstraint,
+    ConstraintType.SUBJECT_PREFERRED_SLOT_RANGE.value: SubjectPreferredSlotRangeConstraint,
     ConstraintType.SUBJECT_MAX_PER_DAY.value: SubjectMaxPerDayConstraint,
     ConstraintType.SUBJECT_CONSECUTIVE_HOURS.value: SubjectConsecutiveHoursConstraint,
     # Volumes

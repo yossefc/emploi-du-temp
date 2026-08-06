@@ -100,6 +100,19 @@ class SolveTimeout:
 # Engine
 # ---------------------------------------------------------------------------
 
+# Matières exemptées de la règle « 2h consécutives » : elles se donnent
+# naturellement en heures isolées réparties dans la semaine.
+BLOCK_EXEMPT_SUBJECTS = {
+    'חנ"ג',          # sport
+    "מנטורים",       # mentors
+    "שיח בוקר",      # échange du matin
+    "חינוך",         # heure de vie de classe
+    'של"ח',          # sortie / terrain
+    "תפילה",         # prière
+    "כישורי חיים",   # compétences de vie
+}
+
+
 @dataclass
 class _AppliedConstraint:
     """Track interne : contrainte appliquée + son origine pour le MUS."""
@@ -254,16 +267,23 @@ class TimetableEngine:
            d'une même classe le même jour coûte TRÈS cher (poids 100). En
            Israël un élève ne reste pas sans cours au milieu de la journée —
            priorité absolue demandée par l'école.
-        2. Étalement matière : le même group 2× le même jour coûte (poids 8)
-           — un cours de 4h/sem doit s'étaler sur 4 jours, pas 2. Si une
-           contrainte HARD subject_consecutive_hours existe, elle gagne
-           (la pénalité devient un coût constant sans effet sur l'optimum).
+        2. Blocs de 2h (demande de l'école) : une matière présente 2× dans la
+           même journée doit l'être en heures CONSÉCUTIVES, jamais éparpillée
+           (1h le matin + 1h l'après-midi est interdit). Concrètement :
+             - au plus UN bloc contigu par (group, jour)      → poids 80
+             - au plus 2h par jour (pas de bloc de 3h+)       → poids 40
+             - viser ⌈h/2⌉ jours (donc des paires, pas des 1h)→ poids 15
+           Exceptions (`BLOCK_EXEMPT_SUBJECTS` + cours ≤ 2h/sem) : sport,
+           mentors, heure de vie… → au contraire étalés 1h/jour (poids 8).
         3. Trous profs : un créneau vide entre deux cours d'un prof le même
            jour coûte (poids 6) — « pas trop de trous pour les profs », mais
            toujours subordonné à la compacité des classes.
         """
         WEIGHT_GAP = 100
-        WEIGHT_DOUBLE = 8
+        WEIGHT_SPLIT = 80        # matière éclatée dans la journée
+        WEIGHT_LONG_BLOCK = 40   # plus de 2h d'affilée
+        WEIGHT_DAY_SPREAD = 15   # 1h isolée au lieu d'une paire
+        WEIGHT_DOUBLE = 8        # doublement des matières exemptées
         WEIGHT_TEACHER_GAP = 6
 
         # --- 1. Compacité par classe ---
@@ -323,17 +343,64 @@ class TimetableEngine:
                     )
                     ctx.soft_penalty_terms.append((gap, WEIGHT_GAP))
 
-        # --- 2. Étalement matière (max 1 cours/jour par group si évitable) ---
-        n_days = len(ctx.active_days())
+        # --- 2. Blocs de 2h consécutives (ou étalement pour les exemptées) ---
+        days_list = ctx.active_days()
+        n_days = len(days_list)
         for g in ctx.groups:
             if g.hours_per_week <= 1 or n_days == 0:
                 continue
-            for day in ctx.active_days():
+            subject_he = (g.subject.name_he or "").strip()
+            exempt = subject_he in BLOCK_EXEMPT_SUBJECTS or g.hours_per_week <= 2
+
+            day_used_vars = []
+            for day in days_list:
                 slots = ctx.active_slots(day)
+                if not slots:
+                    continue
                 day_total = sum(ctx.assigned[g.id][(day, s)] for s in slots)
-                excess = ctx.model.NewIntVar(0, len(slots), f"dbl_g{g.id}_d{day}")
-                ctx.model.Add(excess >= day_total - 1)
-                ctx.soft_penalty_terms.append((excess, WEIGHT_DOUBLE))
+
+                if exempt:
+                    # Matières hors blocs : au plus 1h/jour, réparties.
+                    excess = ctx.model.NewIntVar(0, len(slots), f"dbl_g{g.id}_d{day}")
+                    ctx.model.Add(excess >= day_total - 1)
+                    ctx.soft_penalty_terms.append((excess, WEIGHT_DOUBLE))
+                    continue
+
+                # a) Compter les débuts de bloc : start[s] = 1 si le cours
+                #    commence ici (actif en s, inactif au créneau précédent).
+                starts = []
+                prev = None
+                for s in slots:
+                    st = ctx.model.NewBoolVar(f"bstart_g{g.id}_d{day}_s{s}")
+                    cur = ctx.assigned[g.id][(day, s)]
+                    if prev is None:
+                        ctx.model.Add(st >= cur)
+                    else:
+                        ctx.model.Add(st >= cur - prev)
+                    starts.append(st)
+                    prev = cur
+                # >1 début = matière éclatée dans la journée → pénalisé fort
+                split = ctx.model.NewIntVar(0, len(slots), f"bsplit_g{g.id}_d{day}")
+                ctx.model.Add(split >= sum(starts) - 1)
+                ctx.soft_penalty_terms.append((split, WEIGHT_SPLIT))
+
+                # b) Pas plus de 2h d'affilée
+                over = ctx.model.NewIntVar(0, len(slots), f"blong_g{g.id}_d{day}")
+                ctx.model.Add(over >= day_total - 2)
+                ctx.soft_penalty_terms.append((over, WEIGHT_LONG_BLOCK))
+
+                # c) Jour utilisé ? (pour viser des paires plutôt que des 1h)
+                used = ctx.model.NewBoolVar(f"bused_g{g.id}_d{day}")
+                ctx.model.Add(day_total <= len(slots) * used)
+                ctx.model.Add(day_total >= used)
+                day_used_vars.append(used)
+
+            # d) Nombre de jours ≈ ⌈h/2⌉ : au-delà, ce sont des heures isolées.
+            if day_used_vars:
+                target_days = (g.hours_per_week + 1) // 2
+                extra_days = ctx.model.NewIntVar(0, n_days, f"bdays_g{g.id}")
+                ctx.model.Add(extra_days >= sum(day_used_vars) - target_days)
+                ctx.soft_penalty_terms.append((extra_days, WEIGHT_DAY_SPREAD))
 
         # --- 3. Trous profs (même chaîne before/after que la compacité classe) ---
         for teacher in ctx.teachers:

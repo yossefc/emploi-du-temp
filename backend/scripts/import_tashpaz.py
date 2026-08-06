@@ -209,13 +209,34 @@ def main():
             f"יום חופשי — {t['name']}",
         )
 
-    # 3b. מנטורים : obligatoirement les 3 premières périodes (P1-P3)
+    # 3b. Ouverture de journée : מחנכים ומנטורים en tout début de matinée.
+    # מנטורים = exigence ferme (Yossef) ; les autres = préférence forte —
+    # en dur elles étaient infaisables (שיח בוקר : 42h pour 10 classes ne
+    # tient pas dans P1-P2).
+    add_constraint_soft = lambda subj, lo, hi, w, desc: db.add(Constraint(
+        school_id=school.id,
+        constraint_type=ConstraintType.SUBJECT_PREFERRED_SLOT_RANGE,
+        priority=ConstraintPriority.SOFT, weight=w,
+        parameters={"subject_id": subjects[subj].id, "min_slot": lo, "max_slot": hi},
+        is_active=True, origin_role=ConstraintOriginRole.SCHOOL_ADMIN,
+        origin_description=desc,
+    ))
+
     if "מנטורים" in subjects:
         add_constraint(
             ConstraintType.SUBJECT_REQUIRED_SLOT_RANGE,
             {"subject_id": subjects["מנטורים"].id, "min_slot": 0, "max_slot": 2},
             "מנטורים בשלוש השעות הראשונות בלבד",
         )
+    for subj_name, lo, hi, w in [
+        ("תפילה", 0, 0, 60),
+        ("שיח בוקר", 0, 1, 50),
+        ("חינוך", 0, 2, 40),
+    ]:
+        if subj_name in subjects:
+            add_constraint_soft(subj_name, lo, hi, w,
+                                f"{subj_name} — עדיף בפתיחת היום")
+            n_constraints += 1
 
     # 4. Surplus de barrette en fin de journée — UNIQUEMENT pour les liens
     # mono-matière (règle יחידות 3/5 : les heures de surplus des 5 יח' vont
