@@ -209,6 +209,14 @@ def main():
             f"יום חופשי — {t['name']}",
         )
 
+    # 3b. מנטורים : obligatoirement les 3 premières périodes (P1-P3)
+    if "מנטורים" in subjects:
+        add_constraint(
+            ConstraintType.SUBJECT_REQUIRED_SLOT_RANGE,
+            {"subject_id": subjects["מנטורים"].id, "min_slot": 0, "max_slot": 2},
+            "מנטורים בשלוש השעות הראשונות בלבד",
+        )
+
     # 4. Surplus de barrette en fin de journée — UNIQUEMENT pour les liens
     # mono-matière (règle יחידות 3/5 : les heures de surplus des 5 יח' vont
     # en fin de journée). Les clusters מגמות multi-matières n'y sont pas soumis.

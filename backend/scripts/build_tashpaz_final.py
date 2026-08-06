@@ -48,6 +48,7 @@ def main():
     # ---- 1. Lignes de cours filtrées ----
     # entry = {teacher, subject, classes(frozenset), hours}
     entries = []
+    postponed_olim = []   # cours עולים : placés À LA FIN (décision Yossef 06/08)
     for tname, t in rikuz.items():
         for l in t["lines"]:
             subj = l["subject"].strip()
@@ -55,6 +56,12 @@ def main():
                 continue
             classes = [c.strip() for c in l["classes"] if c.strip()]
             if not classes:
+                continue
+            if subj.endswith(" עולים"):
+                postponed_olim.append({
+                    "teacher": tname, "subject": subj,
+                    "classes": sorted(classes), "hours": int(round(l["hours"])),
+                })
                 continue
             entries.append({
                 "teacher": tname, "subject": subj,
@@ -247,7 +254,9 @@ def main():
             "n_teachers": len(real_teachers), "n_placeholders": len(placeholders),
             "n_groups": len(groups_out), "n_cohorts": len(final_cohorts),
             "n_teachers_with_dispos": n_dispo, "tet5_groups": tet5_added,
+            "n_postponed_olim": len(postponed_olim),
         },
+        "postponed_olim": postponed_olim,
         "classes": all_classes,
         "subjects": all_subjects,
         "teachers": teachers_out,

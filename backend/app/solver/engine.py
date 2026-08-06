@@ -122,41 +122,71 @@ class TimetableEngine:
         disabled_constraint_ids: Iterable[int] = (),
         max_time_seconds: float = 30.0,
     ) -> SolveResult | SolveTimeout:
+        """Résolution en DEUX PHASES.
+
+        Phase 1 — contraintes EN DUR (pas d'assumptions) : CP-SAT est
+        beaucoup plus rapide sans littéraux d'assomption (mesuré ×10+ sur
+        l'école réelle : FEASIBLE en 4 min là où le mode assumptions timeout).
+
+        Phase 2 — uniquement si INFEASIBLE : on reconstruit le modèle avec
+        les assumptions pour extraire le MUS (dialogue de conflit).
+        """
         disabled = set(disabled_constraint_ids)
+
+        # Phase 1 : rapide, en dur
+        ctx, solver, status, _ = self._build_and_solve(
+            disabled, max_time_seconds, use_assumptions=False,
+        )
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            return self._save_solution(
+                ctx, solver, schedule_name, list(disabled), solver.WallTime()
+            )
+        if status != cp_model.INFEASIBLE:
+            return SolveTimeout(solver_time_seconds=solver.WallTime())
+
+        # Phase 2 : diagnostic MUS avec assumptions
+        mus_budget = max(30.0, max_time_seconds)
+        ctx2, solver2, status2, applied2 = self._build_and_solve(
+            disabled, mus_budget, use_assumptions=True,
+        )
+        if status2 == cp_model.INFEASIBLE:
+            return self._build_conflict(ctx2, solver2, applied2, solver2.WallTime())
+        if status2 in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            # Rare (budget différent) : on a finalement trouvé une solution.
+            return self._save_solution(
+                ctx2, solver2, schedule_name, list(disabled), solver2.WallTime()
+            )
+        return SolveTimeout(solver_time_seconds=solver2.WallTime())
+
+    def _build_and_solve(
+        self,
+        disabled: set[int],
+        max_time_seconds: float,
+        *,
+        use_assumptions: bool,
+    ):
+        """Construit le modèle complet et le résout. Retourne (ctx, solver, status, applied)."""
+        self._literal_index_to_applied = {}
         ctx = self._load_data()
         self._create_variables(ctx)
 
-        applied = self._apply_constraints(ctx, disabled=disabled)
+        applied = self._apply_constraints(
+            ctx, disabled=disabled, use_assumptions=use_assumptions
+        )
 
-        # Objectifs qualité automatiques (école israélienne) :
-        # - compacité élèves (pas de חלונות dans la journée d'une classe)
-        # - étalement matière (pas 2× le même cours le même jour si évitable)
+        # Objectifs qualité automatiques (école israélienne)
         self._apply_quality_objectives(ctx)
-
-        # Objectif : minimiser la somme pondérée des pénalités SOFT
         if ctx.soft_penalty_terms:
             ctx.model.Minimize(sum(expr * weight for expr, weight in ctx.soft_penalty_terms))
 
-        # Warm start : réutiliser le dernier planning comme point de départ.
-        # Rend les re-solves du dialogue conflit quasi instantanés ET stables
-        # (le nouveau planning ressemble à l'ancien — crucial pour les humains).
+        # Warm start : le planning précédent guide la recherche (stabilité + vitesse)
         self._add_warm_start_hints(ctx)
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = max_time_seconds
-        solver.parameters.num_search_workers = 8   # portefeuille parallèle CP-SAT
+        solver.parameters.num_search_workers = 8
         status = solver.Solve(ctx.model)
-        elapsed = solver.WallTime()
-
-        if status == cp_model.INFEASIBLE:
-            return self._build_conflict(ctx, solver, applied, elapsed)
-
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return self._save_solution(
-                ctx, solver, schedule_name, list(disabled), elapsed
-            )
-
-        return SolveTimeout(solver_time_seconds=elapsed)
+        return ctx, solver, status, applied
 
     # ---- Chargement données ----
     def _load_data(self) -> SolverContext:
@@ -322,8 +352,20 @@ class TimetableEngine:
         self,
         ctx: SolverContext,
         disabled: set[int],
+        use_assumptions: bool = True,
     ) -> list[_AppliedConstraint]:
         applied: list[_AppliedConstraint] = []
+
+        def register(inst: BaseConstraint, entry: _AppliedConstraint) -> None:
+            """Assumption (phase MUS) ou littéral forcé vrai (phase rapide)."""
+            lit = inst.assumption_literal
+            if lit is None:
+                return
+            if use_assumptions:
+                ctx.model.AddAssumption(lit)
+                self._literal_index_to_applied[lit.Index()] = entry
+            else:
+                ctx.model.Add(lit == 1)
 
         # 1. Structurelles (toujours actives, jamais relaxables)
         for cls in STRUCTURAL_CONSTRAINTS:
@@ -339,17 +381,13 @@ class TimetableEngine:
             )
             inst.apply(ctx)
             applied.append(_AppliedConstraint(instance=inst, db_id=None))
-            if inst.assumption_literal is not None:
-                ctx.model.AddAssumption(inst.assumption_literal)
-                self._literal_index_to_applied[inst.assumption_literal.Index()] = applied[-1]
+            register(inst, applied[-1])
 
         # 3. Préflight : qualification prof
         qualif = TeacherQualifiedForSubjectConstraint()
         qualif.apply(ctx)
         applied.append(_AppliedConstraint(instance=qualif, db_id=None))
-        if qualif.assumption_literal is not None:
-            ctx.model.AddAssumption(qualif.assumption_literal)
-            self._literal_index_to_applied[qualif.assumption_literal.Index()] = applied[-1]
+        register(qualif, applied[-1])
 
         # 4. Contraintes DB actives
         db_constraints = (
@@ -367,9 +405,7 @@ class TimetableEngine:
                 continue
             inst.apply(ctx)
             applied.append(_AppliedConstraint(instance=inst, db_id=dbc.id))
-            if inst.assumption_literal is not None:
-                ctx.model.AddAssumption(inst.assumption_literal)
-                self._literal_index_to_applied[inst.assumption_literal.Index()] = applied[-1]
+            register(inst, applied[-1])
 
         return applied
 
