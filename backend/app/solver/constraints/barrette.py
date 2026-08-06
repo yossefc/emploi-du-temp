@@ -13,10 +13,14 @@ if TYPE_CHECKING:
 class ExtraHoursAtDayEdgeConstraint(BaseConstraint):
     constraint_type = "extra_hours_at_day_edge"
 
-    def __init__(self, *, cohort_id: int, edge: str = "end", **kwargs):
+    def __init__(self, *, cohort_id: int, edge: str = "end", edge_size: int = 3, **kwargs):
         super().__init__(**kwargs)
         self.cohort_id = cohort_id
         self.edge = edge
+        # Fenêtre "fin de journée" = les `edge_size` dernières périodes du jour.
+        # Cas réel : 5 יח' = 7h, 3 יח' = 4h → les 3h de surplus doivent tomber
+        # dans les dernières périodes pour ne pas trouer la journée des 3 יח'.
+        self.edge_size = max(1, edge_size)
 
     def apply(self, ctx):
         cohort = next((c for c in ctx.parallel_cohorts if c.id == self.cohort_id), None)
@@ -26,20 +30,25 @@ class ExtraHoursAtDayEdgeConstraint(BaseConstraint):
         if len(group_ids) < 2:
             return
         max_hours = max(g.hours_per_week for g in cohort.groups)
+        short_groups = [g for g in cohort.groups if g.hours_per_week < max_hours]
+        max_groups = [g for g in cohort.groups if g.hours_per_week == max_hours]
+        if not short_groups:
+            return
         lit = ctx.model.NewBoolVar(f"assum_extra_edge_{self.db_id or 'sys'}_{self.cohort_id}")
         self.assumption_literal = lit
         for day in ctx.active_days():
             slots = ctx.active_slots(day)
             if not slots:
                 continue
-            edge_slot = slots[-1] if self.edge == "end" else slots[0]
+            if self.edge == "end":
+                edge_slots = set(slots[-self.edge_size:])
+            else:
+                edge_slots = set(slots[: self.edge_size])
             for slot in slots:
-                if slot == edge_slot:
+                if slot in edge_slots:
                     continue
-                short_groups = [g for g in cohort.groups if g.hours_per_week < max_hours]
-                max_groups = [g for g in cohort.groups if g.hours_per_week == max_hours]
-                if not short_groups:
-                    continue
+                # Hors fenêtre de bord : l'enveloppe ne tourne que si les courts
+                # tournent aussi → le surplus est repoussé en bord de journée.
                 for g_max in max_groups:
                     for g_short in short_groups:
                         ctx.model.Add(

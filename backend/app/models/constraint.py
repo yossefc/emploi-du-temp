@@ -64,6 +64,7 @@ class ConstraintType(str, enum.Enum):
     TEACHER_QUALIFIED_FOR_SUBJECT = "teacher_qualified_for_subject"
     TEACHER_LANGUAGE_REQUIRED = "teacher_language_required"
     TEACHERS_MUST_TEACH_TOGETHER = "teachers_must_teach_together"  # co-enseignement
+    TEACHER_FREE_DAY = "teacher_free_day"                          # ≥1 jour libre/sem
 
     # --- Spécifique barrette ---
     EXTRA_HOURS_AT_DAY_EDGE = "extra_hours_at_day_edge"

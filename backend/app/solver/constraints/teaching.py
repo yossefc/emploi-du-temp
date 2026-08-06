@@ -116,3 +116,73 @@ class TeachersMustTeachTogetherConstraint(BaseConstraint):
             },
             "required": ["teacher_ids"],
         }
+
+
+class TeacherFreeDayConstraint(BaseConstraint):
+    """Le prof doit avoir au moins `min_free_days` jour(s) SANS AUCUN cours.
+
+    Règle israélienne standard (יום חופשי). HARD relaxable : une contrainte
+    par prof → si infaisable, le MUS désigne précisément le prof concerné.
+    """
+    constraint_type = "teacher_free_day"
+
+    def __init__(self, *, teacher_id: int, min_free_days: int = 1, **kwargs):
+        super().__init__(**kwargs)
+        self.teacher_id = teacher_id
+        self.min_free_days = min_free_days
+
+    def apply(self, ctx: "SolverContext") -> None:
+        group_ids = ctx.groups_of_teacher(self.teacher_id)
+        if not group_ids:
+            return
+        days = ctx.active_days()
+        if len(days) <= self.min_free_days:
+            return
+        lit = ctx.model.NewBoolVar(f"assum_freeday_{self.db_id or 'sys'}_{self.teacher_id}")
+        self.assumption_literal = lit
+
+        day_busy_vars = []
+        for day in days:
+            slots = ctx.active_slots(day)
+            total = sum(ctx.assigned[g][(day, s)] for g in group_ids for s in slots)
+            busy = ctx.model.NewBoolVar(f"fd_busy_t{self.teacher_id}_d{day}")
+            # total <= M*busy : si busy=0 alors aucun cours ce jour
+            ctx.model.Add(total <= len(slots) * busy)
+            day_busy_vars.append(busy)
+
+        ctx.model.Add(
+            sum(day_busy_vars) <= len(days) - self.min_free_days
+        ).OnlyEnforceIf(lit)
+
+    def explain(self, ctx) -> ConstraintExplanation:
+        name = f"#{self.teacher_id}"
+        try:
+            name = ctx.teacher(self.teacher_id).full_name
+        except KeyError:
+            pass
+        suggestions = []
+        if self.db_id:
+            suggestions.append(Suggestion(
+                kind="disable_constraint",
+                title_he=f"ותרו על יום חופשי עבור {name}",
+                title_fr=f"Renoncer au jour libre de {name}",
+                description_he="המורה יעבוד כל ימות השבוע.",
+                description_fr="Le prof travaillera tous les jours de la semaine.",
+                auto_action={"verb": "patch_constraint", "target_id": self.db_id,
+                             "patch": {"is_active": False}},
+            ))
+        return ConstraintExplanation(
+            title_he=f"יום חופשי : {name}",
+            title_fr=f"Jour libre : {name}",
+            detail_he=f"{name} חייב לפחות {self.min_free_days} יום בשבוע ללא שיעורים.",
+            detail_fr=f"{name} doit avoir au moins {self.min_free_days} jour/sem sans cours.",
+            origin=self.origin_description or "מדיניות בית הספר",
+            suggestions=suggestions,
+        )
+
+    @classmethod
+    def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
+        return cls(teacher_id=params["teacher_id"],
+                   min_free_days=params.get("min_free_days", 1),
+                   db_id=db_id, priority=priority, weight=weight,
+                   origin_description=origin_description)
