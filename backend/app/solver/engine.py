@@ -251,15 +251,20 @@ class TimetableEngine:
         entre un planning « légal » et un planning utilisable :
 
         1. Compacité classe (אין חלונות) : un créneau vide entre deux cours
-           d'une même classe le même jour coûte cher (poids 40). En Israël un
-           élève ne peut pas rester sans cours au milieu de la journée.
+           d'une même classe le même jour coûte TRÈS cher (poids 100). En
+           Israël un élève ne reste pas sans cours au milieu de la journée —
+           priorité absolue demandée par l'école.
         2. Étalement matière : le même group 2× le même jour coûte (poids 8)
            — un cours de 4h/sem doit s'étaler sur 4 jours, pas 2. Si une
            contrainte HARD subject_consecutive_hours existe, elle gagne
            (la pénalité devient un coût constant sans effet sur l'optimum).
+        3. Trous profs : un créneau vide entre deux cours d'un prof le même
+           jour coûte (poids 6) — « pas trop de trous pour les profs », mais
+           toujours subordonné à la compacité des classes.
         """
-        WEIGHT_GAP = 40
+        WEIGHT_GAP = 100
         WEIGHT_DOUBLE = 8
+        WEIGHT_TEACHER_GAP = 6
 
         # --- 1. Compacité par classe ---
         for cls in ctx.classes:
@@ -329,6 +334,44 @@ class TimetableEngine:
                 excess = ctx.model.NewIntVar(0, len(slots), f"dbl_g{g.id}_d{day}")
                 ctx.model.Add(excess >= day_total - 1)
                 ctx.soft_penalty_terms.append((excess, WEIGHT_DOUBLE))
+
+        # --- 3. Trous profs (même chaîne before/after que la compacité classe) ---
+        for teacher in ctx.teachers:
+            group_ids = ctx.groups_of_teacher(teacher.id)
+            if len(group_ids) == 0:
+                continue
+            for day in ctx.active_days():
+                slots = ctx.active_slots(day)
+                if len(slots) < 3:
+                    continue
+                busy: dict[int, cp_model.IntVar] = {}
+                for s in slots:
+                    b = ctx.model.NewBoolVar(f"tbusy_t{teacher.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(
+                        b, [ctx.assigned[g][(day, s)] for g in group_ids]
+                    )
+                    busy[s] = b
+                before: dict[int, cp_model.IntVar] = {}
+                after: dict[int, cp_model.IntVar] = {}
+                prev = None
+                for s in slots:
+                    v = ctx.model.NewBoolVar(f"tbef_t{teacher.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(v, [busy[s]] if prev is None else [busy[s], prev])
+                    before[s] = v
+                    prev = v
+                nxt = None
+                for s in reversed(slots):
+                    v = ctx.model.NewBoolVar(f"taft_t{teacher.id}_d{day}_s{s}")
+                    ctx.model.AddMaxEquality(v, [busy[s]] if nxt is None else [busy[s], nxt])
+                    after[s] = v
+                    nxt = v
+                for idx in range(1, len(slots) - 1):
+                    s = slots[idx]
+                    gap = ctx.model.NewBoolVar(f"tgap_t{teacher.id}_d{day}_s{s}")
+                    ctx.model.Add(
+                        gap >= before[slots[idx - 1]] + after[slots[idx + 1]] - busy[s] - 1
+                    )
+                    ctx.soft_penalty_terms.append((gap, WEIGHT_TEACHER_GAP))
 
     # ---- Warm start ----
     def _add_warm_start_hints(self, ctx: SolverContext) -> None:
