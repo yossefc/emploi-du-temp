@@ -64,6 +64,12 @@ class SolverContext:
     # L'engine appelle model.Minimize(sum(w * expr)) si non-vide.
     soft_penalty_terms: list = field(default_factory=list)
 
+    # Créneaux interdits à une classe, renseignés par BlockSlotClassConstraint.
+    # (class_id, day) -> {slot}. Les objectifs de qualité s'en servent pour ne
+    # pas exiger d'une classe qu'elle aille jusqu'à P6 un jour où l'école lui
+    # ferme la journée plus tôt.
+    class_blocked: dict = field(default_factory=dict)
+
     # --- Caches dérivés ---
     _slots_by_day: dict[int, list[int]] = field(default_factory=dict, repr=False)
     _groups_by_teacher: dict[int, list[int]] = field(default_factory=dict, repr=False)

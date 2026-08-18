@@ -48,3 +48,8 @@ backend/logs/
 firebase-debug.log
 .firebaserc.local
 frontend/tsconfig.tsbuildinfo
+
+# Sauvegardes de base et état de solveur (générés)
+*.db
+*.db.bak-*
+warm_start/

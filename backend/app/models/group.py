@@ -16,7 +16,7 @@ de la classe X" est dérivée : tous les Groups dont source_classes contient X.
 """
 
 import enum
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -48,6 +48,10 @@ class Group(Base, TimestampMixin):
     label = Column(String(200), nullable=False)            # ex: "Math 5 yehidot - ז"
     hours_per_week = Column(Integer, nullable=False, default=1)
     student_count = Column(Integer, nullable=True)         # nullable car déductible
+    # « לפצל שעות » : les 2h du cours n'ont pas à être données d'un seul
+    # tenant (colonne cochée par Yossef sur 70 cours ; le sport est même
+    # mieux réparti). Exempte le groupe de la règle « un bloc par jour ».
+    can_split = Column(Boolean, nullable=False, default=False)
 
     school = relationship("School", back_populates="groups")
     grade = relationship("Grade", back_populates="groups")

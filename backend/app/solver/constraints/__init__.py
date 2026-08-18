@@ -23,6 +23,8 @@ from app.solver.constraints.preferences import (
 )
 from app.solver.constraints.teaching import (
     TeacherFreeDayConstraint,
+    TeacherPreferredFreeDayConstraint,
+    GroupPinnedSlotConstraint,
     TeachersMustTeachTogetherConstraint,
 )
 from app.solver.constraints.barrette import ExtraHoursAtDayEdgeConstraint
@@ -87,6 +89,8 @@ CONSTRAINT_REGISTRY: dict[str, type[BaseConstraint]] = {
     ConstraintType.TEACHER_LANGUAGE_REQUIRED.value: TeacherLanguageRequiredConstraint,
     ConstraintType.TEACHERS_MUST_TEACH_TOGETHER.value: TeachersMustTeachTogetherConstraint,
     ConstraintType.TEACHER_FREE_DAY.value: TeacherFreeDayConstraint,
+    ConstraintType.TEACHER_PREFERRED_FREE_DAY.value: TeacherPreferredFreeDayConstraint,
+    ConstraintType.GROUP_PINNED_SLOT.value: GroupPinnedSlotConstraint,
     # Préférences SOFT
     ConstraintType.TEACHER_PREFER_MORNING.value: TeacherPreferMorningConstraint,
     ConstraintType.TEACHER_PREFER_AFTERNOON.value: TeacherPreferAfternoonConstraint,

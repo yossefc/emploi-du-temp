@@ -1,0 +1,299 @@
+<title>מערכת שעות תשפ"ז — אמי"ת בר אילן נתניה</title>
+<style>
+:root{
+  --ground:#f7f6f4; --surface:#fff; --raised:#fffefc;
+  --ink:#191b1f; --ink-2:#4a4e57; --ink-3:#7b7f8a;
+  --rule:#e2e0da; --rule-2:#efedE8;
+  --accent:#1e3a5f; --accent-soft:#e8eef5;
+  --bad:#a3341f; --bad-soft:#fbe9e4;
+  --warn:#8a5d0b; --warn-soft:#faf0dc;
+  --good:#1d6b3f; --good-soft:#e5f2e9;
+  --shadow:0 1px 2px rgba(25,27,31,.05),0 8px 24px -12px rgba(25,27,31,.18);
+  --he:"Segoe UI","Noto Sans Hebrew","Arial Hebrew",Arial,sans-serif;
+  --num:ui-monospace,"Cascadia Mono","Consolas",monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#14151a; --surface:#1b1d23; --raised:#20232a;
+    --ink:#eceef2; --ink-2:#a8adb8; --ink-3:#767c88;
+    --rule:#2c3038; --rule-2:#24272e;
+    --accent:#9dc0e8; --accent-soft:#1d2836;
+    --bad:#f0a08c; --bad-soft:#3a201a;
+    --warn:#e4bd76; --warn-soft:#332a17;
+    --good:#8fd4a8; --good-soft:#16301f;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#14151a; --surface:#1b1d23; --raised:#20232a;
+  --ink:#eceef2; --ink-2:#a8adb8; --ink-3:#767c88;
+  --rule:#2c3038; --rule-2:#24272e;
+  --accent:#9dc0e8; --accent-soft:#1d2836;
+  --bad:#f0a08c; --bad-soft:#3a201a;
+  --warn:#e4bd76; --warn-soft:#332a17;
+  --good:#8fd4a8; --good-soft:#16301f;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+:root[data-theme="light"]{
+  --ground:#f7f6f4; --surface:#fff; --raised:#fffefc;
+  --ink:#191b1f; --ink-2:#4a4e57; --ink-3:#7b7f8a;
+  --rule:#e2e0da; --rule-2:#efedE8;
+  --accent:#1e3a5f; --accent-soft:#e8eef5;
+  --bad:#a3341f; --bad-soft:#fbe9e4;
+  --warn:#8a5d0b; --warn-soft:#faf0dc;
+  --good:#1d6b3f; --good-soft:#e5f2e9;
+  --shadow:0 1px 2px rgba(25,27,31,.05),0 8px 24px -12px rgba(25,27,31,.18);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--he);
+     direction:rtl;-webkit-font-smoothing:antialiased;line-height:1.45}
+.wrap{max-width:1220px;margin:0 auto;padding:0 20px 72px}
+
+/* ---------- en-tête ---------- */
+header{border-bottom:1px solid var(--rule);background:var(--surface);
+       position:sticky;top:0;z-index:20}
+.hd{max-width:1220px;margin:0 auto;padding:14px 20px;display:flex;
+    align-items:baseline;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--ink-3);font-size:12.5px}
+.health{margin-inline-start:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;
+      border-radius:999px;font-size:11.5px;font-weight:600;
+      border:1px solid transparent;white-space:nowrap}
+.pill b{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:700}
+.p-good{background:var(--good-soft);color:var(--good);border-color:currentColor}
+.p-warn{background:var(--warn-soft);color:var(--warn);border-color:currentColor}
+.p-bad{background:var(--bad-soft);color:var(--bad);border-color:currentColor}
+.p-mute{background:var(--rule-2);color:var(--ink-2)}
+
+/* ---------- barre de contrôle ---------- */
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+          padding:16px 0 12px;position:sticky;top:53px;background:var(--ground);
+          z-index:15;border-bottom:1px solid var(--rule-2)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:9px;
+     overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--ink-2);cursor:pointer;
+            padding:7px 15px;font:inherit;font-size:13px;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
+     border-radius:9px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.count{color:var(--ink-3);font-size:12.5px;margin-inline-start:auto}
+
+/* ---------- pastilles de navigation ---------- */
+.chips{display:flex;gap:5px;flex-wrap:wrap;padding:12px 0 4px}
+.chip{border:1px solid var(--rule);background:var(--surface);color:var(--ink-2);
+      border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;
+      cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+      transition:border-color .12s,color .12s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip[aria-current="true"]{background:var(--accent);border-color:var(--accent);
+                           color:var(--surface);font-weight:600}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--bad);flex:none}
+.chip[aria-current="true"] .dot{background:var(--surface)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- fiche ---------- */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;
+      box-shadow:var(--shadow);margin-top:18px;overflow:hidden}
+.card-hd{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+         padding:16px 20px;border-bottom:1px solid var(--rule-2)}
+.card-hd h2{margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em}
+.card-hd .meta{color:var(--ink-3);font-size:12.5px}
+.audit{display:flex;gap:6px;flex-wrap:wrap;margin-inline-start:auto}
+
+/* ---------- grille ---------- */
+.gridwrap{overflow-x:auto}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px}
+th,td{border-bottom:1px solid var(--rule-2);border-inline-start:1px solid var(--rule-2)}
+th:last-child,td:last-child{border-inline-end:1px solid var(--rule-2)}
+thead th{background:var(--raised);font-size:12px;font-weight:600;color:var(--ink-2);
+         padding:9px 6px;text-align:center;letter-spacing:.03em;
+         position:sticky;top:100px;z-index:5}
+tbody th{width:46px;background:var(--raised);font-family:var(--num);
+         font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;
+         color:var(--ink-3);text-align:center}
+td{padding:0;height:52px;vertical-align:stretch}
+.slot{height:100%;min-height:52px;display:flex;flex-direction:column;
+      justify-content:center;gap:1px;padding:5px 7px;border-inline-start:3px solid transparent}
+.slot .s{font-size:12.5px;font-weight:600;line-height:1.25}
+.slot .w{font-size:10.5px;color:var(--ink-3);line-height:1.2}
+.slot.multi .s{font-size:11px}
+td.empty{background:transparent}
+td.gap{background:var(--bad-soft);position:relative}
+td.gap::after{content:"חלון";position:absolute;inset:0;display:flex;
+              align-items:center;justify-content:center;font-size:10.5px;
+              font-weight:700;color:var(--bad);letter-spacing:.06em}
+tfoot td,tfoot th{background:var(--raised);font-family:var(--num);
+                  font-variant-numeric:tabular-nums;font-size:11.5px;
+                  color:var(--ink-3);text-align:center;padding:7px 4px;
+                  border-bottom:0}
+
+/* ---------- légende ---------- */
+.legend{display:flex;gap:6px;flex-wrap:wrap;padding:14px 20px;
+        border-top:1px solid var(--rule-2)}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
+    color:var(--ink-2)}
+.lg i{width:11px;height:11px;border-radius:3px;display:block}
+.foot{color:var(--ink-3);font-size:12px;padding-top:26px;text-align:center}
+
+@media print{
+  header,.controls,.chips,.btn,.seg,.foot{display:none!important}
+  body{background:#fff}
+  .card{break-inside:avoid;box-shadow:none;border-color:#bbb;margin:0 0 14px}
+  thead th{position:static}
+  .wrap{padding:0}
+}
+@media (max-width:720px){
+  .card-hd h2{font-size:21px}
+  td{height:46px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="hd">
+    <h1>מערכת שעות תשפ"ז</h1>
+    <span class="sub" id="sub"></span>
+    <div class="health" id="health"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div class="seg" role="group" aria-label="תצוגה">
+      <button id="tab-c" aria-pressed="true">לפי כיתה</button>
+      <button id="tab-t" aria-pressed="false">לפי מורה</button>
+    </div>
+    <button class="btn" id="prev">◀ הקודם</button>
+    <button class="btn" id="next">הבא ▶</button>
+    <button class="btn" id="print">הדפסה</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="chips" id="chips"></div>
+  <div id="card"></div>
+
+  <p class="foot">
+    חלון = שעה ריקה בין שני שיעורים · המספרים בתחתית = שעות ביום ושעת הסיום
+  </p>
+</div>
+
+<script>
+const DATA = __DATA__;
+const DAYS = ["ראשון","שני","שלישי","רביעי","חמישי"];
+let mode = "c", idx = 0;
+
+const list = () => mode === "c" ? DATA.classes : DATA.teachers;
+const el = id => document.getElementById(id);
+
+function pill(cls, label, value){
+  return `<span class="pill ${cls}"><b>${value}</b> ${label}</span>`;
+}
+
+function health(){
+  const cs = DATA.classes;
+  const gaps = cs.reduce((a,c)=>a+c.audit.gaps,0);
+  const late = cs.reduce((a,c)=>a+c.audit.late,0);
+  const split = cs.reduce((a,c)=>a+c.audit.split,0);
+  const tg = DATA.teachers.reduce((a,t)=>a+t.audit.gaps,0);
+  el("health").innerHTML =
+      pill(gaps?"p-bad":"p-good","חלונות תלמידים",gaps)
+    + pill(late?"p-bad":"p-good","ימים שלא מתחילים ב-1",late)
+    + pill(split?"p-warn":"p-good","מקצועות מפוצלים",split)
+    + pill("p-mute","חלונות מורים",tg);
+  el("sub").textContent =
+    `${DATA.entries} שיעורים · ${DATA.classes.length} כיתות · ${DATA.teachers.length} מורים`;
+}
+
+function chips(){
+  el("chips").innerHTML = list().map((o,i)=>{
+    const a = o.audit;
+    const bad = mode==="c" ? (a.gaps||a.late) : (a.gaps>3);
+    return `<button class="chip" role="link" aria-current="${i===idx}" data-i="${i}">`
+         + (bad?'<span class="dot"></span>':'') + o.name + `</button>`;
+  }).join("");
+  el("count").textContent = `${idx+1} / ${list().length}`;
+}
+
+function grid(o){
+  const P = DATA.periods, isCls = mode==="c";
+  const used = {};
+  for (const k in o.cells){ const [d,s]=k.split(",").map(Number);
+    (used[d] ||= []).push(s); }
+  const bounds = {};
+  for (const d in used){ const a=used[d]; bounds[d]=[Math.min(...a),Math.max(...a)]; }
+
+  let head = `<tr><th></th>` + DAYS.map(d=>`<th>${d}</th>`).join("") + `</tr>`;
+  let body = "";
+  for (let p=0;p<P;p++){
+    body += `<tr><th>${p+1}</th>`;
+    for (let d=0;d<5;d++){
+      const items = o.cells[`${d},${p}`];
+      if (!items){
+        const b = bounds[d];
+        const isGap = b && p>b[0] && p<b[1];
+        body += `<td class="${isGap?"gap":"empty"}"></td>`;
+      } else {
+        const inner = items.map(it=>
+          `<span class="s">${it.s}</span><span class="w">${it.w}</span>`).join("");
+        const c = items[0].c;
+        body += `<td style="background:${c}14"><div class="slot${items.length>1?" multi":""}"`
+              + ` style="border-inline-start-color:${c}">${inner}</div></td>`;
+      }
+    }
+    body += `</tr>`;
+  }
+  let foot = `<tr><th>סה"כ</th>`;
+  for (let d=0;d<5;d++){
+    const n = (used[d]||[]).length;
+    const end = bounds[d] ? bounds[d][1]+1 : null;
+    foot += `<td>${n?`${n} ש'<br>עד ${end}`:"—"}</td>`;
+  }
+  foot += `</tr>`;
+
+  const a = o.audit;
+  const chips = [
+    pill("p-mute","שעות",a.hours),
+    pill("p-mute","ימים",a.days),
+    a.gaps ? pill("p-bad","חלונות",a.gaps) : pill("p-good","ללא חלונות","✓"),
+  ];
+  if (isCls){
+    if (a.late) chips.push(pill("p-bad","לא מתחיל ב-1",a.late));
+    if (a.split) chips.push(pill("p-warn","מפוצל",a.split));
+  }
+  return `<div class="card">
+    <div class="card-hd"><h2>${o.name}</h2>
+      <span class="meta">${isCls?"כיתה":"מורה"}</span>
+      <div class="audit">${chips.join("")}</div></div>
+    <div class="gridwrap"><table><thead>${head}</thead>
+      <tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
+    <div class="legend">${DATA.subjects.map(s=>
+      `<span class="lg"><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>
+  </div>`;
+}
+
+function render(){ chips(); el("card").innerHTML = grid(list()[idx]); }
+
+el("chips").addEventListener("click", e=>{
+  const b = e.target.closest(".chip"); if(!b) return;
+  idx = +b.dataset.i; render();
+});
+el("tab-c").onclick = ()=>{ mode="c"; idx=0;
+  el("tab-c").setAttribute("aria-pressed","true");
+  el("tab-t").setAttribute("aria-pressed","false"); render(); };
+el("tab-t").onclick = ()=>{ mode="t"; idx=0;
+  el("tab-t").setAttribute("aria-pressed","true");
+  el("tab-c").setAttribute("aria-pressed","false"); render(); };
+el("prev").onclick = ()=>{ idx=(idx-1+list().length)%list().length; render(); };
+el("next").onclick = ()=>{ idx=(idx+1)%list().length; render(); };
+el("print").onclick = ()=>window.print();
+document.addEventListener("keydown", e=>{
+  if(e.target.tagName==="INPUT") return;
+  if(e.key==="ArrowRight"){ el("prev").click(); }
+  if(e.key==="ArrowLeft"){ el("next").click(); }
+});
+
+health(); render();
+</script>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+from app.models.constraint import ConstraintPriority
 from app.solver.constraints.base import (
     BaseConstraint,
     ConstraintExplanation,
@@ -48,6 +49,19 @@ class _BlockSlotBase(BaseConstraint):
         group_ids = self._target_groups(ctx)
         if not group_ids or not self.positions:
             return
+
+        # Indisponibilité SOUHAITÉE et non imposée : chaque heure posée dans
+        # un créneau « fermé » coûte `weight` au lieu de rendre le modèle
+        # infaisable. Le solveur n'y touche donc qu'en dernier recours.
+        if self.priority == ConstraintPriority.SOFT:
+            w = int(self.weight or 60)
+            for day, slot in self.positions:
+                for g_id in group_ids:
+                    var = ctx.assigned[g_id].get((day, slot))
+                    if var is not None:
+                        ctx.soft_penalty_terms.append((var, w))
+            return
+
         lit = ctx.model.NewBoolVar(f"assum_{self.constraint_type}_{self.db_id or 'sys'}")
         self.assumption_literal = lit
         for day, slot in self.positions:
@@ -104,6 +118,13 @@ class BlockSlotClassConstraint(_BlockSlotBase):
     constraint_type = "block_slot_class"
 
     def _target_groups(self, ctx):
+        # On note aussi les créneaux fermés à cette classe : les objectifs de
+        # qualité en ont besoin pour ne pas lui imposer d'aller jusqu'à P6 un
+        # jour où sa journée s'arrête plus tôt (le lundi de la חטיבה, libéré
+        # pour les ישיבות).
+        if self.target_id:
+            for day, slot in self.positions:
+                ctx.class_blocked.setdefault((self.target_id, day), set()).add(slot)
         return ctx.groups_of_class(self.target_id) if self.target_id else []
 
     def explain(self, ctx):

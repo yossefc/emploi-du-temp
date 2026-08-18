@@ -17,44 +17,74 @@ class ExtraHoursAtDayEdgeConstraint(BaseConstraint):
         super().__init__(**kwargs)
         self.cohort_id = cohort_id
         self.edge = edge
-        # Fenêtre "fin de journée" = les `edge_size` dernières périodes du jour.
-        # Cas réel : 5 יח' = 7h, 3 יח' = 4h → les 3h de surplus doivent tomber
-        # dans les dernières périodes pour ne pas trouer la journée des 3 יח'.
         self.edge_size = max(1, edge_size)
 
     def apply(self, ctx):
+        """Pousse le surplus d'une barrette inégale vers le bord de journée.
+
+        Cas réel : 5 יח' = 7h, 3 יח' = 4h. Pendant les 4h communes tout le monde
+        travaille ; les 3h de surplus des 5 יח' doivent tomber au bord de la
+        journée, sinon les élèves de 3 יח' ont un trou.
+
+        Formulation SOUPLE et volontaire. La version dure précédente imposait le
+        surplus dans les `edge_size` dernières périodes de la GRILLE (P9-P11 sur
+        une grille de 11), alors que les classes finissent vers P8 : le surplus
+        n'avait aucun créneau licite et le modèle devenait infaisable dès que
+        plusieurs barrettes inégales coexistaient. On pénalise désormais chaque
+        heure de surplus proportionnellement à sa précocité dans la journée : le
+        solveur la repousse en fin de journée quand c'est possible, et accepte
+        un compromis quand ça ne l'est pas.
+        """
         cohort = next((c for c in ctx.parallel_cohorts if c.id == self.cohort_id), None)
-        if cohort is None or not cohort.groups:
-            return
-        group_ids = [g.id for g in cohort.groups]
-        if len(group_ids) < 2:
+        if cohort is None or not cohort.groups or len(cohort.groups) < 2:
             return
         max_hours = max(g.hours_per_week for g in cohort.groups)
         short_groups = [g for g in cohort.groups if g.hours_per_week < max_hours]
         max_groups = [g for g in cohort.groups if g.hours_per_week == max_hours]
         if not short_groups:
             return
+
+        # Groupes de TOUTES les classes concernées : c'est par rapport à leur
+        # journée réelle qu'on juge « la fin », pas par rapport à la grille.
+        class_ids = {c.id for g in cohort.groups for c in g.source_classes}
+        cohort_ids = {g.id for g in cohort.groups}
+        # Les heures en extra peuvent s'ENCHAÎNER en fin de journée : c'est ce
+        # que faisait תשפ"ו (anglais יב lundi P7-P8-P9, les trois profs à 5h
+        # pendant qu'אליס n'avait qu'une heure le mardi). Ma version initiale
+        # interdisait tout cours après une heure en extra, y compris les autres
+        # heures en extra — ce qui exigeait une fin de journée distincte par
+        # heure excédentaire : 8 fins pour יב, qui n'a que 5 jours. On exclut
+        # donc la barrette elle-même de l'interdiction.
+        neighbour_ids = ({gid for cid in class_ids for gid in ctx.groups_of_class(cid)}
+                         - cohort_ids)
+
         lit = ctx.model.NewBoolVar(f"assum_extra_edge_{self.db_id or 'sys'}_{self.cohort_id}")
         self.assumption_literal = lit
+        weight = self.weight or 45
         for day in ctx.active_days():
             slots = ctx.active_slots(day)
-            if not slots:
+            if len(slots) < 2:
                 continue
-            if self.edge == "end":
-                edge_slots = set(slots[-self.edge_size:])
-            else:
-                edge_slots = set(slots[: self.edge_size])
-            for slot in slots:
-                if slot in edge_slots:
-                    continue
-                # Hors fenêtre de bord : l'enveloppe ne tourne que si les courts
-                # tournent aussi → le surplus est repoussé en bord de journée.
+            for idx, slot in enumerate(slots[:-1]):
                 for g_max in max_groups:
                     for g_short in short_groups:
-                        ctx.model.Add(
-                            ctx.assigned[g_max.id][(day, slot)]
-                            <= ctx.assigned[g_short.id][(day, slot)]
-                        ).OnlyEnforceIf(lit)
+                        # surplus = l'enveloppe tourne sans le groupe court :
+                        # une partie des élèves n'a pas cours à ce moment-là.
+                        surplus = ctx.model.NewBoolVar(
+                            f"surplus_{self.cohort_id}_{g_max.id}_{g_short.id}_{day}_{slot}")
+                        a_max = ctx.assigned[g_max.id][(day, slot)]
+                        a_short = ctx.assigned[g_short.id][(day, slot)]
+                        ctx.model.Add(surplus >= a_max - a_short)
+                        # ... alors plus rien après, pour ces classes, ce jour-là :
+                        # les élèves libérés rentrent chez eux au lieu d'attendre.
+                        # « י lundi P7 : pas tout le monde a maths — les heures
+                        # en extra doivent être fin de journée » (Yossef 10/08).
+                        for later in slots[idx + 1:]:
+                            for gid in neighbour_ids:
+                                var = ctx.assigned[gid].get((day, later))
+                                if var is not None:
+                                    ctx.model.Add(var == 0).OnlyEnforceIf([lit, surplus])
+                        ctx.soft_penalty_terms.append((surplus, weight))
 
     def explain(self, ctx):
         edge_he = "סוף" if self.edge == "end" else "תחילת"
@@ -74,5 +104,6 @@ class ExtraHoursAtDayEdgeConstraint(BaseConstraint):
     @classmethod
     def _build_from_params(cls, *, params, db_id, priority, weight, origin_description):
         return cls(cohort_id=params["cohort_id"], edge=params.get("edge", "end"),
+                   edge_size=params.get("edge_size", 3),
                    db_id=db_id, priority=priority, weight=weight,
                    origin_description=origin_description)
